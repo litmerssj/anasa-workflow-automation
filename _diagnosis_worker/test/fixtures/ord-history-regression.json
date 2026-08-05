@@ -1,0 +1,10 @@
+[
+  { "id": "ALL-06", "title": "기존 양식과 같은 맑은 고딕 폰트 적용 요청", "expectedTier": "tier-1" },
+  { "id": "ALL-07", "title": "양식 테두리가 깨지거나 이중선이 단일선으로 표시됨", "expectedTier": "tier-1" },
+  { "id": "SIZE-01", "title": "공통 주문 목록의 행 높이와 그리드 크기 통일 요청", "expectedTier": "tier-1" },
+  { "id": "ALL-02", "title": "체크한 주문 1건이 아니라 전체 주문이 엑셀로 내려받아짐", "expectedTier": "tier-2" },
+  { "id": "ALL-11", "title": "모달 바깥 빈 공간 클릭 시 입력 중 창이 닫힘", "expectedTier": "tier-2" },
+  { "id": "REQ-12", "title": "공구팀으로 등록했으나 공무팀으로 저장됨", "expectedTier": "tier-2" },
+  { "id": "FP-10", "title": "FP 제품이 각 항목에 올바르게 표시되지 않아 DB 확인 대기", "expectedTier": "tier-2" },
+  { "id": "FP-11", "title": "주소와 상세주소 분리가 남은 티켓으로 다시 언급되며 DB 확인 대기", "expectedTier": "tier-2" }
+]

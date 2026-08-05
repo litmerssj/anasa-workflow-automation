@@ -1,0 +1,35 @@
+# This repository intentionally tracks only the workflow automation packages.
+/*
+!/.gitignore
+!/.graphiti
+!/README.md
+!/docs/
+!/docs/**
+!/_customer_board/
+!/_customer_board/**
+!/_diagnosis_worker/
+!/_diagnosis_worker/**
+
+# Runtime secrets and deployment metadata
+_customer_board/.env
+_customer_board/.env*.local
+_customer_board/.vercel/
+_diagnosis_worker/.env
+_diagnosis_worker/.env*.local
+
+# Dependencies and build output
+**/node_modules/
+**/.next/
+**/out/
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# Runtime state and logs
+**/*.log
+_diagnosis_worker/.worker.lock
+**/__pycache__/
+**/*.pyc
+
+# Local OS/editor files
+**/.DS_Store
+**/*.pem

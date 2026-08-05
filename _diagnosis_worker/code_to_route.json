@@ -1,0 +1,1025 @@
+{
+ "BAS-MA-0013M": {
+  "route": "/d/department-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/department-management"
+  ]
+ },
+ "BAS-MA-001M": {
+  "route": "/d/system-code-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/system-code-management"
+  ]
+ },
+ "BAS-MA-002M": {
+  "route": "/d/register-business-code",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/register-business-code"
+  ]
+ },
+ "BAS-MA-003M": {
+  "route": "/d/account-classification-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/account-classification-registration"
+  ]
+ },
+ "BAS-MA-006M": {
+  "route": "/d/process-code-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/process-code-registration"
+  ]
+ },
+ "BAS-MA-007M": {
+  "route": "/d/equipment-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/equipment-registration"
+  ]
+ },
+ "BAS-MA-008M": {
+  "route": "/d/defective-code-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/defective-code-registration"
+  ]
+ },
+ "BAS-MA-009M": {
+  "route": "/d/equipment-parts-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/equipment-parts-management"
+  ]
+ },
+ "BAS-MA-011M": {
+  "route": "/d/user-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/user-registration"
+  ]
+ },
+ "BAS-MA-012M": {
+  "route": "/d/worker-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/worker-registration"
+  ]
+ },
+ "BAS-MA-021M": {
+  "route": "/d/item-reference-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/item-reference-management"
+  ]
+ },
+ "BAS-MA-022M": {
+  "route": "/d/product-specific-process-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/product-specific-process-registration"
+  ]
+ },
+ "BAS-MA-023M": {
+  "route": "/d/inventory-reference-process-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/inventory-reference-process-registration"
+  ]
+ },
+ "BAS-MA-024M": {
+  "route": "/d/purchase-price-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/purchase-price-registration"
+  ]
+ },
+ "BAS-MA-025M": {
+  "route": "/d/process-price-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/process-price-management"
+  ]
+ },
+ "BAS-MA-026M": {
+  "route": "/d/basic-inventory-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/basic-inventory-registration"
+  ]
+ },
+ "BAS-MA-031M": {
+  "route": "/d/business-partner-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/business-partner-registration"
+  ]
+ },
+ "BAS-MA-032M": {
+  "route": "/d/company-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/company-registration"
+  ]
+ },
+ "BAS-MA-033M": {
+  "route": "/d/on-site-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/on-site-registration"
+  ]
+ },
+ "BAS-MA-034M": {
+  "route": "/d/cargo-branch-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/cargo-branch-registration"
+  ]
+ },
+ "BAS-MA-035M": {
+  "route": "/d/agency-user-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/agency-user-management"
+  ]
+ },
+ "BAS-MA-071M": {
+  "route": "/d/menu-registration-list",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/menu-registration-list"
+  ]
+ },
+ "BAS-MA-081M": {
+  "route": "/d/menu-permissions-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/menu-permissions-registration"
+  ]
+ },
+ "BAS-MA-082M": {
+  "route": "/d/register-individual-menu-permission",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/register-individual-menu-permission"
+  ]
+ },
+ "BAS-MA-091M": {
+  "route": "/d/system-user-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/system-user-status"
+  ]
+ },
+ "BAS-MA-092M": {
+  "route": "/d/system-usage-performance",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/system-usage-performance"
+  ]
+ },
+ "LOG-CLS-001M": {
+  "route": "/d/agg-business-partner",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/agg-business-partner"
+  ]
+ },
+ "LOG-CLS-002M": {
+  "route": "/d/sales-closing",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/sales-closing"
+  ]
+ },
+ "LOG-CLS-003M": {
+  "route": "/d/sales-performance-summary",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/sales-performance-summary",
+   "/d/sales-product-performance-summary"
+  ]
+ },
+ "LOG-CLS-005M": {
+  "route": "/d/tax-invoice",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/tax-invoice"
+  ]
+ },
+ "LOG-CLS-007M": {
+  "route": "/d/business-partner-aggregation",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/business-partner-aggregation",
+   "/d/sales-product-business-partner-aggregation"
+  ]
+ },
+ "LOG-CLS-008M": {
+  "route": "/d/cost-registration-by-partner",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/cost-registration-by-partner"
+  ]
+ },
+ "LOG-CLS-009M": {
+  "route": "/d/closing-analysis",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/closing-analysis"
+  ]
+ },
+ "LOG-CLS-010M": {
+  "route": "/d/sales-performance-summary-by-year",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/sales-performance-summary-by-year"
+  ]
+ },
+ "LOG-GP-001M": {
+  "route": "/d/tech-order-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/tech-order-registration"
+  ]
+ },
+ "LOG-GP-002M": {
+  "route": "/d/gp-tech-normal-packing-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-normal-packing-registration"
+  ]
+ },
+ "LOG-GP-003M": {
+  "route": "/d/gp-tech-unpaid-packing-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-unpaid-packing-registration"
+  ]
+ },
+ "LOG-GP-004M": {
+  "route": "/d/gp-tech-outbound-processing",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-outbound-processing"
+  ]
+ },
+ "LOG-GP-005M": {
+  "route": "/d/gp-tech-outbound-aggregation",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-outbound-aggregation"
+  ]
+ },
+ "LOG-GP-006M": {
+  "route": "/d/gp-tech-order-unpaid-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-order-unpaid-status"
+  ]
+ },
+ "LOG-GP-007M": {
+  "route": "/d/gp-tech-daily-inventory-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-daily-inventory-status"
+  ]
+ },
+ "LOG-GP-008M": {
+  "route": "/d/gp-tech-shipping-packing-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-shipping-packing-registration"
+  ]
+ },
+ "LOG-GP-009M": {
+  "route": "/d/gp-tech-receipt-without-work-report",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/gp-tech-receipt-without-work-report"
+  ]
+ },
+ "LOG-IN-001M": {
+  "route": "/d/production-receipt-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/production-receipt-registration"
+  ]
+ },
+ "LOG-IN-002M": {
+  "route": "/d/production-receipt-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/production-receipt-inquiry"
+  ]
+ },
+ "LOG-ORD-001M": {
+  "route": "/d/order-registration",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/order-registration",
+   "/d/pur-order-registration",
+   "/d/sales-order-registration"
+  ]
+ },
+ "LOG-ORD-002M": {
+  "route": "/d/order-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/order-status",
+   "/d/sales-product-order-status"
+  ]
+ },
+ "LOG-ORD-003M": {
+  "route": "/d/packing-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/packing-registration"
+  ]
+ },
+ "LOG-ORD-004M": {
+  "route": "/d/unpaid-packing-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/unpaid-packing-registration"
+  ]
+ },
+ "LOG-OUT-001M": {
+  "route": "/d/gp-tech-outbound-processing",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/gp-tech-outbound-processing",
+   "/d/sales-product-shipment-processing",
+   "/d/shipment-detail-by-customer",
+   "/d/shipment-processing"
+  ]
+ },
+ "LOG-OUT-002M": {
+  "route": "/d/gp-tech-outbound-aggregation",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/gp-tech-outbound-aggregation",
+   "/d/shipment-aggregation"
+  ]
+ },
+ "LOG-OUT-003M": {
+  "route": "/d/transport-number-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/transport-number-registration"
+  ]
+ },
+ "LOG-PKG-001M": {
+  "route": "/d/production-arrival-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/production-arrival-registration"
+  ]
+ },
+ "LOG-PKG-002M": {
+  "route": "/d/gp-tech-shipping-packing-registration",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/gp-tech-shipping-packing-registration",
+   "/d/shipping-packing-registration"
+  ]
+ },
+ "LOG-PKG-003M": {
+  "route": "/d/receiving-without-work-report",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/receiving-without-work-report"
+  ]
+ },
+ "LOG-STK-001M": {
+  "route": "/d/daily-inventory-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/daily-inventory-status",
+   "/d/sales-product-daily-inventory-status"
+  ]
+ },
+ "LOG-STK-002M": {
+  "route": "/d/payment-history-by-item",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/payment-history-by-item"
+  ]
+ },
+ "LOG-STK-003M": {
+  "route": "/d/inventory-adjustment-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/inventory-adjustment-registration"
+  ]
+ },
+ "LOG-STK-004M": {
+  "route": "/d/inventory-transfer-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/inventory-transfer-registration"
+  ]
+ },
+ "LOG-UND-001M": {
+  "route": "/d/pur-unpaid-order-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/pur-unpaid-order-status",
+   "/d/sales-product-unpaid-order-status",
+   "/d/unpaid-order-status"
+  ]
+ },
+ "LOG-UND-002M": {
+  "route": "/d/unpaid-order-total",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/unpaid-order-total"
+  ]
+ },
+ "PDT-MG-001M": {
+  "route": "/d/production-plan-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/production-plan-management"
+  ]
+ },
+ "PDT-MG-002M": {
+  "route": "/d/production-plan-vs-result",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/production-plan-vs-result"
+  ]
+ },
+ "PDT-MG-003M": {
+  "route": "/d/product-achievement-rate",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/product-achievement-rate"
+  ]
+ },
+ "PDT-MG-004M": {
+  "route": "/d/process-progress",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/process-progress"
+  ]
+ },
+ "PDT-MG-005M": {
+  "route": "/d/product-ranking",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/product-ranking"
+  ]
+ },
+ "PDT-MG-006M": {
+  "route": "/d/facilities-operation-rate",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/facilities-operation-rate"
+  ]
+ },
+ "PDT-MG-007M": {
+  "route": "/d/product-defect-rate",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/product-defect-rate"
+  ]
+ },
+ "PDT-MG-008M": {
+  "route": "/d/product-out-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/product-out-status"
+  ]
+ },
+ "PDT-OSC-001M": {
+  "route": "/d/raw-material-receipt-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/raw-material-receipt-registration"
+  ]
+ },
+ "PDT-OSC-002M": {
+  "route": "/d/outsourcing-receipt-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/outsourcing-receipt-registration"
+  ]
+ },
+ "PDT-OSC-003M": {
+  "route": "/d/raw-material-receipt-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/raw-material-receipt-status"
+  ]
+ },
+ "PDT-OSC-004M": {
+  "route": "/d/outsourcing-processing-receipt",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/outsourcing-processing-receipt"
+  ]
+ },
+ "PDT-OSC-005M": {
+  "route": "/d/outsourcing-inout-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/outsourcing-inout-status"
+  ]
+ },
+ "PDT-PGR-001M": {
+  "route": "/d/finished-product-plan-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/finished-product-plan-status",
+   "/d/half-product-plan-status",
+   "/d/outsourcing-production-plan-progress",
+   "/d/seonghun-plan-progress-status",
+   "/d/unpaid-management-status"
+  ]
+ },
+ "PDT-PGR-002M": {
+  "route": "/d/finished-product-plan-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/finished-product-plan-status",
+   "/d/half-product-plan-status"
+  ]
+ },
+ "PDT-PGR-003M": {
+  "route": "/d/half-product-plan-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/half-product-plan-status"
+  ]
+ },
+ "PDT-PGR-004M": {
+  "route": "/d/outsourcing-production-plan-progress",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/outsourcing-production-plan-progress"
+  ]
+ },
+ "PDT-PGR-005M": {
+  "route": "/d/seonghun-plan-progress-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/seonghun-plan-progress-status"
+  ]
+ },
+ "PDT-PGR-006M": {
+  "route": "/d/work-order-alert",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/work-order-alert",
+   "/d/work-report"
+  ]
+ },
+ "PDT-PGR-011M": {
+  "route": "/d/work-report",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/work-report"
+  ]
+ },
+ "PDT-PGR-012M": {
+  "route": "/d/work-journal",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/work-journal"
+  ]
+ },
+ "PDT-PLN-001M": {
+  "route": "/d/finished-product-plan-registration",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/finished-product-plan-registration",
+   "/d/half-product-plan-registration"
+  ]
+ },
+ "PDT-PLN-002M": {
+  "route": "/d/half-product-plan-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/half-product-plan-registration"
+  ]
+ },
+ "PUR-BL-001M": {
+  "route": "/d/export-import-bl-registration",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/export-import-bl-registration",
+   "/d/log-export-import-bl-registration",
+   "/d/tool-export-import-bl-registration"
+  ]
+ },
+ "PUR-COS-001M": {
+  "route": "/d/misc-purchase-receipt-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/misc-purchase-receipt-registration"
+  ]
+ },
+ "PUR-DV-001M": {
+  "route": "/d/purchase-receipt-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/purchase-receipt-registration"
+  ]
+ },
+ "PUR-DV-002M": {
+  "route": "/d/other-purchase-receipt-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/other-purchase-receipt-registration"
+  ]
+ },
+ "PUR-MO-001M": {
+  "route": "/d/incoming-summary-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/incoming-summary-inquiry"
+  ]
+ },
+ "PUR-MO-002M": {
+  "route": "/d/incoming-status-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/incoming-status-inquiry"
+  ]
+ },
+ "PUR-PLN-003M": {
+  "route": "/d/purchase-plan",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/purchase-plan"
+  ]
+ },
+ "PUR-PO-001M": {
+  "route": "/d/pur-order-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/pur-order-registration"
+  ]
+ },
+ "PUR-PO-002M": {
+  "route": "/d/purchase-order-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/purchase-order-status"
+  ]
+ },
+ "PUR-PO-003M": {
+  "route": "/d/pur-unpaid-order-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/pur-unpaid-order-status"
+  ]
+ },
+ "PUR-STK-001M": {
+  "route": "/d/daily-inventory-status-finished-product",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/daily-inventory-status-finished-product"
+  ]
+ },
+ "SAL-LGM-001M": {
+  "route": "/d/estimated-inventory-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/estimated-inventory-status",
+   "/d/sales-product-estimated-inventory-status"
+  ]
+ },
+ "SAL-SAM-001M": {
+  "route": "/d/periodical-tool-shipment-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/periodical-tool-shipment-status"
+  ]
+ },
+ "SAL-TOM-001M": {
+  "route": "/d/order-status-board",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/order-status-board"
+  ]
+ },
+ "TO-AS-001M": {
+  "route": "/d/as-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/as-registration"
+  ]
+ },
+ "TO-AS-002M": {
+  "route": "/d/defect-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/defect-inquiry"
+  ]
+ },
+ "TO-AS-003M": {
+  "route": "/d/clamping-tool-as-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/clamping-tool-as-status",
+   "/d/construction-as-status",
+   "/d/zhou-as-status"
+  ]
+ },
+ "TO-AS-004M": {
+  "route": "/d/clamping-tool-as-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/clamping-tool-as-status",
+   "/d/zhou-as-status"
+  ]
+ },
+ "TO-CM-001M": {
+  "route": "/d/code-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/code-management"
+  ]
+ },
+ "TO-CM-002M": {
+  "route": "/d/notice-board",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/notice-board"
+  ]
+ },
+ "TO-MA-001M": {
+  "route": "/d/late-fee-setting",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/late-fee-setting"
+  ]
+ },
+ "TO-MA-002M": {
+  "route": "/d/defective-disposal-code",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/defective-disposal-code"
+  ]
+ },
+ "TO-MA-003M": {
+  "route": "/d/rental-price-table",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/rental-price-table"
+  ]
+ },
+ "TO-MA-004M": {
+  "route": "/d/rental-code",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/rental-code"
+  ]
+ },
+ "TO-MO-001M": {
+  "route": "/d/delivery-status-by-agency",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/delivery-status-by-agency"
+  ]
+ },
+ "TO-MO-002M": {
+  "route": "/d/rental-support-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/rental-support-status"
+  ]
+ },
+ "TO-MO-003M": {
+  "route": "/d/rental-status-by-type",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/rental-status-by-type"
+  ]
+ },
+ "TO-MO-004M": {
+  "route": "/d/tool-as-statuses",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/tool-as-statuses"
+  ]
+ },
+ "TO-MO-005M": {
+  "route": "/d/rent-and-support-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/rent-and-support-status"
+  ]
+ },
+ "TO-MO-006M": {
+  "route": "/d/rental-weekly-report",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/rental-weekly-report"
+  ]
+ },
+ "TO-OD-001M": {
+  "route": "/d/rental-order-receipt",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/rental-order-receipt",
+   "/d/tool-order-registration"
+  ]
+ },
+ "TO-OD-002M": {
+  "route": "/d/sales-order-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/sales-order-management"
+  ]
+ },
+ "TO-OD-003M": {
+  "route": "/d/as-order-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/as-order-inquiry"
+  ]
+ },
+ "TO-OD-004M": {
+  "route": "/d/tool-transfer-reception-management",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/tool-transfer-reception-management"
+  ]
+ },
+ "TO-OD-005M": {
+  "route": "/d/periodical-tool-shipment-status",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/periodical-tool-shipment-status",
+   "/d/tool-delivery-processing",
+   "/d/tool-shipment-processing"
+  ]
+ },
+ "TO-OM-001M": {
+  "route": "/d/sales-tool-shipment-status-board",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/sales-tool-shipment-status-board",
+   "/d/shipment-status-board"
+  ]
+ },
+ "TO-OM-002M": {
+  "route": "/d/tool-history-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/tool-history-inquiry"
+  ]
+ },
+ "TO-OM-003M": {
+  "route": "/d/transportation-number",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/transportation-number"
+  ]
+ },
+ "TO-OM-004M": {
+  "route": "/d/to-delivery-method",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/to-delivery-method"
+  ]
+ },
+ "TO-OM-005M": {
+  "route": "/d/tool-packing",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/tool-packing"
+  ]
+ },
+ "TO-RT-001M": {
+  "route": "/d/finished-product-production-plan",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/finished-product-production-plan"
+  ]
+ },
+ "TO-RT-002M": {
+  "route": "/d/late-fee-calculation",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/late-fee-calculation"
+  ]
+ },
+ "TO-RT-003M": {
+  "route": "/d/contract-confirmation-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/contract-confirmation-inquiry"
+  ]
+ },
+ "TO-SEL-001M": {
+  "route": "/d/sales-summary",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/sales-summary"
+  ]
+ },
+ "TO-SEL-002M": {
+  "route": "/d/as-part-in",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/as-part-in",
+   "/d/as-registration",
+   "/d/inventory-adjustment-registration",
+   "/d/purchase-price-registration",
+   "/d/sales-close"
+  ]
+ },
+ "TO-SEL-003M": {
+  "route": "/d/sales-closing-confirmation",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/sales-closing-confirmation"
+  ]
+ },
+ "TO-SEL-004M": {
+  "route": "/d/sales-monthly-report",
+  "ambiguous": true,
+  "all_routes": [
+   "/d/sales-monthly-report",
+   "/d/sales-product-monthly-report",
+   "/d/tool-sales-monthly-report"
+  ]
+ },
+ "TO-SEL-005M": {
+  "route": "/d/other-claims",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/other-claims"
+  ]
+ },
+ "TO-STK-001M": {
+  "route": "/d/purchase-master",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/purchase-master"
+  ]
+ },
+ "TO-STK-002M": {
+  "route": "/d/loss-inquiry",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/loss-inquiry"
+  ]
+ },
+ "TO-STK-003M": {
+  "route": "/d/disuse-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/disuse-registration"
+  ]
+ },
+ "TO-STK-004M": {
+  "route": "/d/as-part-master",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/as-part-master"
+  ]
+ },
+ "TO-STK-005M": {
+  "route": "/d/as-part-in",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/as-part-in"
+  ]
+ },
+ "TO-STK-006M": {
+  "route": "/d/daily-closing",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/daily-closing"
+  ]
+ },
+ "TO-STK-007M": {
+  "route": "/d/rental-tool-type-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/rental-tool-type-status"
+  ]
+ },
+ "TO-STK-008M": {
+  "route": "/d/general-return-registration",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/general-return-registration"
+  ]
+ },
+ "TO-STK-009M": {
+  "route": "/d/general-return-status",
+  "ambiguous": false,
+  "all_routes": [
+   "/d/general-return-status"
+  ]
+ }
+}

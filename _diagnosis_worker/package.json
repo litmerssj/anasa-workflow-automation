@@ -1,0 +1,21 @@
+{
+  "name": "anasa-linear-workflow-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "dry": "node worker.mjs --once --dry",
+    "once": "node worker.mjs --once",
+    "loop": "node worker.mjs --loop",
+    "classify:dry": "node classify.mjs --dry",
+    "classify": "node classify.mjs",
+    "classify:audit": "node audit-classification.mjs",
+    "plan:log:dry": "node plan-log-backlog.mjs --dry",
+    "plan:log": "node plan-log-backlog.mjs",
+    "migrate:dry": "node migration.mjs --dry",
+    "migrate": "node migration.mjs",
+    "migrate:qa:provision": "node migrate-qa-states.mjs --provision",
+    "migrate:qa:dry": "node migrate-qa-states.mjs --dry",
+    "migrate:qa": "node migrate-qa-states.mjs"
+  }
+}

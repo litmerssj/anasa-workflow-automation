@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #1a1f2b;
+  --sub: #5b6472;
+  --line: #e3e6ec;
+  --bg: #ffffff;
+  --soft: #f6f7fa;
+  --blue: #2b5fd9;
+  --blue-soft: #eef3fe;
+  --green: #1f8a4c;
+  --green-soft: #eaf6ef;
+  --red: #c73a3a;
+  --red-soft: #fdeeee;
+  --amber: #b07a12;
+  --amber-soft: #fdf6e5;
+}
+
+body {
+  color: var(--ink);
+  background: var(--soft);
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+textarea,
+input,
+select {
+  font-family: inherit;
+}
