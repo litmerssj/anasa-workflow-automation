@@ -80,6 +80,7 @@ class CodexPort(Protocol):
         output_schema: dict[str, object],
         model: str | None,
         thread_id: str | None,
+        thread_name: str,
         writable: bool,
     ) -> tuple[str, str]: ...
 
@@ -95,6 +96,7 @@ class OpenAICodexPort:
         output_schema: dict[str, object],
         model: str | None,
         thread_id: str | None,
+        thread_name: str,
         writable: bool,
     ) -> tuple[str, str]:
         from openai_codex import ApprovalMode, AsyncCodex, Sandbox
@@ -115,7 +117,9 @@ class OpenAICodexPort:
                     model=model,
                     sandbox=sandbox,
                     approval_mode=ApprovalMode.deny_all,
+                    ephemeral=False,
                 )
+            await thread.set_name(thread_name)
             result = await thread.run(
                 prompt,
                 output_schema=output_schema,
@@ -190,6 +194,7 @@ Follow-up instructions added while this Workflow was running:
             output_schema=AnalysisPayload.model_json_schema(),
             model=input.ticket.model,
             thread_id=input.codex_thread_id,
+            thread_name=f"{input.ticket.ticket_id} Temporal 분석 중",
             writable=False,
         )
         payload = AnalysisPayload.model_validate_json(response)
@@ -266,6 +271,7 @@ Return only the requested JSON summary when finished.
             output_schema=ImplementationPayload.model_json_schema(),
             model=input.ticket.model,
             thread_id=input.codex_thread_id,
+            thread_name=f"{input.ticket.ticket_id} Temporal 개발 중",
             writable=writable,
         )
         payload = ImplementationPayload.model_validate_json(response)

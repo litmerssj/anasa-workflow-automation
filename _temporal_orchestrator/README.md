@@ -69,6 +69,8 @@ Codex 앱의 `anasa-control-plane` 플러그인이 이 worker와 통신합니다
 추가 프롬프트는 같은 `codex_thread_id`를 resume합니다. 개발방향 승인 전이면 재분석하고,
 PR 승인 전이면 재구현·재검증하여 새 head SHA를 만들고 이전 승인을 무효화합니다. Backend
 batch assignment 또는 release가 시작된 뒤에는 같은 Workflow의 범위 변경을 차단합니다.
+각 SDK thread는 `ephemeral=false`로 보존되고 `ANA-N Temporal 분석 중/개발 중` 이름이
+붙으므로 Codex 앱 사이드바에서 실제 대화와 도구 실행 과정을 열어볼 수 있습니다.
 
 ## Workflow
 

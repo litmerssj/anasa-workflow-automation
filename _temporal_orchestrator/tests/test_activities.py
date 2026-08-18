@@ -88,6 +88,7 @@ async def test_analysis_is_structured_and_scope_hash_ignores_report_wording() ->
     assert first.backend_change is True
     assert first.codex_thread_id == "codex-thread-1"
     assert fake.calls[0]["writable"] is False
+    assert fake.calls[0]["thread_name"] == "ANA-65 Temporal 분석 중"
 
 
 @pytest.mark.asyncio
@@ -130,3 +131,4 @@ async def test_implementation_uses_workspace_write_only_in_live_mode() -> None:
         )
     )
     assert fake.calls[0]["writable"] is True
+    assert fake.calls[0]["thread_name"] == "ANA-65 Temporal 개발 중"
