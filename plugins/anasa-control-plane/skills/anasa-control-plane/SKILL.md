@@ -7,6 +7,14 @@ description: Use the local Temporal control plane to start, inspect, prompt, app
 
 Use the `anasa-temporal` MCP tools as the authoritative workflow interface.
 
+## Visible worker topology
+
+- Actual analysis and implementation run in a user-visible Codex app project task, never in a headless Temporal activity.
+- When a new ticket is requested, create or adopt one Codex project worktree task, then call `anasa_register_visible_ticket` with its thread ID and worktree path.
+- The visible task calls `anasa_sync_visible_ticket` after analysis, PR preparation, deployment evidence, blockers, and completion.
+- Temporal owns durable state and approval history; the visible Codex task owns investigation, implementation, tests, and user-visible progress.
+- Do not call the legacy `anasa_start_tickets` headless tool for new work.
+
 ## Read and report
 
 - Normalize bare numbers to `ANA-<number>`.

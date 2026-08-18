@@ -22,9 +22,13 @@ from .models import (
     TicketPhase,
     TicketSnapshot,
     TicketWorkflowInput,
+    VisibleStateUpdate,
+    VisibleTicketInput,
+    VisibleTicketSnapshot,
     WorkflowInstruction,
 )
-from .runtime import task_queue, workflow_id
+from .runtime import task_queue, visible_workflow_id, workflow_id
+from .visible_workflow import VisibleTicketWorkflow
 from .workflow import TicketWorkflow
 
 
@@ -163,6 +167,78 @@ class OrchestratorService:
                 prompt=prompt,
                 author=author,
             ),
+        )
+
+    async def register_visible_ticket(
+        self,
+        ticket_id: str,
+        codex_thread_id: str,
+        worktree_path: str,
+        initial_state: str = "ANALYZE",
+    ) -> VisibleTicketSnapshot:
+        normalized = normalize_ticket_id(ticket_id)
+        handle = await self._client.start_workflow(
+            VisibleTicketWorkflow.run,
+            VisibleTicketInput(
+                ticket_id=normalized,
+                codex_thread_id=codex_thread_id,
+                worktree_path=worktree_path,
+                initial_state=initial_state,
+            ),
+            id=visible_workflow_id(normalized),
+            task_queue=task_queue(),
+            id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+            static_summary=f"{normalized} visible Codex task tracker",
+        )
+        return await handle.query(VisibleTicketWorkflow.get_status)
+
+    async def get_visible_ticket(self, ticket_id: str) -> VisibleTicketSnapshot:
+        normalized = normalize_ticket_id(ticket_id)
+        handle = self._client.get_workflow_handle_for(
+            VisibleTicketWorkflow.run, visible_workflow_id(normalized)
+        )
+        return await handle.query(VisibleTicketWorkflow.get_status)
+
+    async def list_visible_tickets(self) -> list[dict[str, Any]]:
+        tickets: list[dict[str, Any]] = []
+        async for execution in self._client.list_workflows():
+            if execution.workflow_type != "VisibleTicketWorkflow":
+                continue
+            ticket_id = execution.id.removeprefix("anasa-visible-")
+            item: dict[str, Any] = {
+                "ticket_id": ticket_id,
+                "workflow_id": execution.id,
+                "temporal_status": execution.status.name if execution.status else "UNKNOWN",
+                "start_time": execution.start_time.isoformat(),
+            }
+            try:
+                item.update(asdict(await self.get_visible_ticket(ticket_id)))
+            except Exception as error:
+                item["query_error"] = str(error)
+            tickets.append(item)
+        return sorted(tickets, key=lambda item: item["ticket_id"])
+
+    async def sync_visible_ticket(
+        self, update: VisibleStateUpdate
+    ) -> VisibleTicketSnapshot:
+        normalized = normalize_ticket_id(update.ticket_id)
+        update.ticket_id = normalized
+        handle = self._client.get_workflow_handle_for(
+            VisibleTicketWorkflow.run, visible_workflow_id(normalized)
+        )
+        return await handle.execute_update(VisibleTicketWorkflow.sync_state, update)
+
+    async def add_visible_instruction(
+        self, ticket_id: str, prompt: str, author: str
+    ) -> VisibleTicketSnapshot:
+        normalized = normalize_ticket_id(ticket_id)
+        handle = self._client.get_workflow_handle_for(
+            VisibleTicketWorkflow.run, visible_workflow_id(normalized)
+        )
+        return await handle.execute_update(
+            VisibleTicketWorkflow.add_instruction,
+            WorkflowInstruction(normalized, prompt, author),
         )
 
     async def start_backend_batch(

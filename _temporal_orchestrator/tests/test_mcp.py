@@ -20,6 +20,9 @@ async def test_mcp_server_exposes_ticket_control_tools() -> None:
     assert {
         "anasa_list_tickets",
         "anasa_list_backend_batches",
+        "anasa_list_visible_tickets",
+        "anasa_register_visible_ticket",
+        "anasa_sync_visible_ticket",
         "anasa_start_tickets",
         "anasa_add_instruction",
         "anasa_approve_direction",

@@ -5,6 +5,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from .models import VisibleStateUpdate
 from .runtime import connect_client
 from .service import OrchestratorService
 
@@ -30,6 +31,55 @@ async def anasa_list_tickets() -> list[dict[str, Any]]:
 
 
 @mcp.tool()
+async def anasa_list_visible_tickets() -> list[dict[str, Any]]:
+    """List Temporal trackers for visible Codex app ticket tasks."""
+    return await (await _service()).list_visible_tickets()
+
+
+@mcp.tool()
+async def anasa_register_visible_ticket(
+    ticket_id: str,
+    codex_thread_id: str,
+    worktree_path: str,
+    initial_state: str = "ANALYZE",
+) -> dict[str, Any]:
+    """Register an app-visible Codex task as the durable worker for one ticket."""
+    return asdict(
+        await (await _service()).register_visible_ticket(
+            ticket_id, codex_thread_id, worktree_path, initial_state
+        )
+    )
+
+
+@mcp.tool()
+async def anasa_sync_visible_ticket(
+    ticket_id: str,
+    state: str,
+    summary: str = "",
+    report_markdown: str = "",
+    scope_hash: str | None = None,
+    pr_urls: list[str] | None = None,
+    exact_shas: dict[str, str] | None = None,
+    completed: bool = False,
+) -> dict[str, Any]:
+    """Persist a visible task's report and current gate in Temporal."""
+    return asdict(
+        await (await _service()).sync_visible_ticket(
+            VisibleStateUpdate(
+                ticket_id=ticket_id,
+                state=state,
+                summary=summary,
+                report_markdown=report_markdown,
+                scope_hash=scope_hash,
+                pr_urls=pr_urls or [],
+                exact_shas=exact_shas or {},
+                completed=completed,
+            )
+        )
+    )
+
+
+@mcp.tool()
 async def anasa_get_ticket(ticket_id: str) -> dict[str, Any]:
     """Read one ticket's durable state, reports, Dev Q, PR artifacts, and failures."""
     return asdict(await (await _service()).get_ticket(ticket_id))
@@ -47,8 +97,11 @@ async def anasa_start_tickets(
     instruction: str = "",
     mode: str = "live",
 ) -> list[dict[str, str]]:
-    """Start or adopt up to eight comma/space-separated ANA tickets."""
-    return await (await _service()).start_tickets(tickets, user_instruction=instruction, mode=mode)
+    """Deprecated headless start. Create a visible Codex task and register it instead."""
+    raise RuntimeError(
+        "headless ticket start is disabled; create an app-visible project task and call "
+        "anasa_register_visible_ticket"
+    )
 
 
 @mcp.tool()

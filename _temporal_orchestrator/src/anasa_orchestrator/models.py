@@ -331,3 +331,39 @@ class BackendBatchSnapshot:
     report_markdown: str | None = None
     last_failure: str | None = None
     transitions: list[str] = field(default_factory=list)
+
+
+@dataclass
+class VisibleTicketInput:
+    ticket_id: str
+    codex_thread_id: str
+    worktree_path: str
+    initial_state: str = "ANALYZE"
+
+
+@dataclass
+class VisibleStateUpdate:
+    ticket_id: str
+    state: str
+    summary: str = ""
+    report_markdown: str = ""
+    scope_hash: str | None = None
+    pr_urls: list[str] = field(default_factory=list)
+    exact_shas: dict[str, str] = field(default_factory=dict)
+    completed: bool = False
+
+
+@dataclass
+class VisibleTicketSnapshot:
+    ticket_id: str = ""
+    codex_thread_id: str = ""
+    worktree_path: str = ""
+    current_state: str = "ANALYZE"
+    summary: str = ""
+    report_markdown: str = ""
+    scope_hash: str | None = None
+    pr_urls: list[str] = field(default_factory=list)
+    exact_shas: dict[str, str] = field(default_factory=dict)
+    instruction_history: list[str] = field(default_factory=list)
+    completed: bool = False
+    transitions: list[str] = field(default_factory=list)

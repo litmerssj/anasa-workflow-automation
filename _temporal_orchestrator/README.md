@@ -4,10 +4,10 @@ ANASA 티켓의 조사, 사용자 보고, 개발방향 승인, Codex 구현, PR 
 backend 통합 배포, QA 증빙을 durable Temporal Workflow로 관리합니다.
 
 ```text
-Codex 앱 ── ANASA MCP Plugin ── Temporal ── Codex SDK ticket worker
-                                  ├── Linear
-                                  ├── Git/GitHub
-                                  └── approved deployment workflow
+Codex 앱 visible project task ── ANASA MCP Plugin ── Temporal
+          ├── Linear                                   ├── durable state
+          ├── Git/GitHub                               ├── approval history
+          └── analysis/implementation                  └── backend batch
 ```
 
 평소 사용자 화면은 Codex 앱입니다. `localhost:8233`의 Temporal 기본 UI는 Workflow
@@ -69,8 +69,9 @@ Codex 앱의 `anasa-control-plane` 플러그인이 이 worker와 통신합니다
 추가 프롬프트는 같은 `codex_thread_id`를 resume합니다. 개발방향 승인 전이면 재분석하고,
 PR 승인 전이면 재구현·재검증하여 새 head SHA를 만들고 이전 승인을 무효화합니다. Backend
 batch assignment 또는 release가 시작된 뒤에는 같은 Workflow의 범위 변경을 차단합니다.
-각 SDK thread는 `ephemeral=false`로 보존되고 `ANA-N Temporal 분석 중/개발 중` 이름이
-붙으므로 Codex 앱 사이드바에서 실제 대화와 도구 실행 과정을 열어볼 수 있습니다.
+실제 agent는 Codex 앱의 `anasa` 프로젝트 worktree task에서 실행됩니다. Task는 분석·구현·
+테스트 과정을 실시간으로 보여주고 `anasa_sync_visible_ticket`으로 보고와 현재 gate를
+Temporal에 기록합니다. Temporal은 agent를 headless로 실행하지 않습니다.
 
 ## Workflow
 

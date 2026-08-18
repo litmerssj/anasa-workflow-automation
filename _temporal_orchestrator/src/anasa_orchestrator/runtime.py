@@ -22,3 +22,7 @@ def task_queue() -> str:
 
 def workflow_id(ticket_id: str) -> str:
     return f"anasa-ticket-{ticket_id}"
+
+
+def visible_workflow_id(ticket_id: str) -> str:
+    return f"anasa-visible-{ticket_id}"

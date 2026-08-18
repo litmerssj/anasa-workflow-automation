@@ -1,6 +1,6 @@
 {
   "name": "anasa-control-plane",
-  "version": "0.1.0+codex.20260818014616",
+  "version": "0.1.0+codex.20260818025446",
   "description": "Manage durable ANASA ticket workflows from the Codex app through Temporal.",
   "author": {
     "name": "litmerssj"
