@@ -22,6 +22,7 @@ from .models import (
     TicketPhase,
     TicketSnapshot,
     TicketWorkflowInput,
+    VisibleDirectionApproval,
     VisibleStateUpdate,
     VisibleTicketInput,
     VisibleTicketSnapshot,
@@ -239,6 +240,18 @@ class OrchestratorService:
         return await handle.execute_update(
             VisibleTicketWorkflow.add_instruction,
             WorkflowInstruction(normalized, prompt, author),
+        )
+
+    async def approve_visible_direction(
+        self, ticket_id: str, scope_hash: str, approved_by: str
+    ) -> VisibleTicketSnapshot:
+        normalized = normalize_ticket_id(ticket_id)
+        handle = self._client.get_workflow_handle_for(
+            VisibleTicketWorkflow.run, visible_workflow_id(normalized)
+        )
+        return await handle.execute_update(
+            VisibleTicketWorkflow.approve_direction,
+            VisibleDirectionApproval(normalized, scope_hash, approved_by),
         )
 
     async def start_backend_batch(

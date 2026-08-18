@@ -1,8 +1,10 @@
 import pytest
+from temporalio.client import WorkflowUpdateFailedError
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from anasa_orchestrator.models import (
+    VisibleDirectionApproval,
     VisibleStateUpdate,
     VisibleTicketInput,
     WorkflowInstruction,
@@ -46,6 +48,18 @@ async def test_visible_ticket_tracks_app_task_reports_without_running_agent() ->
             assert snapshot.scope_hash == "scope-348"
             assert snapshot.instruction_history == ["tester: check regression"]
 
+            with pytest.raises(WorkflowUpdateFailedError):
+                await handle.execute_update(
+                    VisibleTicketWorkflow.approve_direction,
+                    VisibleDirectionApproval("ANA-348", "stale", "tester"),
+                )
+            approved = await handle.execute_update(
+                VisibleTicketWorkflow.approve_direction,
+                VisibleDirectionApproval("ANA-348", "scope-348", "tester"),
+            )
+            assert approved.current_state == "IMPLEMENT"
+            assert approved.approved_scope_hash == "scope-348"
+
             await handle.execute_update(
                 VisibleTicketWorkflow.sync_state,
                 VisibleStateUpdate(
@@ -58,4 +72,9 @@ async def test_visible_ticket_tracks_app_task_reports_without_running_agent() ->
             result = await handle.result()
 
     assert result.completed is True
-    assert result.transitions == ["ANALYZE", "WAIT_DIRECTION_APPROVAL", "COMPLETE"]
+    assert result.transitions == [
+        "ANALYZE",
+        "WAIT_DIRECTION_APPROVAL",
+        "IMPLEMENT",
+        "COMPLETE",
+    ]

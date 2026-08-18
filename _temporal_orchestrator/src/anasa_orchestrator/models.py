@@ -354,6 +354,13 @@ class VisibleStateUpdate:
 
 
 @dataclass
+class VisibleDirectionApproval:
+    ticket_id: str
+    scope_hash: str
+    approved_by: str
+
+
+@dataclass
 class VisibleTicketSnapshot:
     ticket_id: str = ""
     codex_thread_id: str = ""
@@ -362,6 +369,8 @@ class VisibleTicketSnapshot:
     summary: str = ""
     report_markdown: str = ""
     scope_hash: str | None = None
+    approved_scope_hash: str | None = None
+    approved_by: str | None = None
     pr_urls: list[str] = field(default_factory=list)
     exact_shas: dict[str, str] = field(default_factory=dict)
     instruction_history: list[str] = field(default_factory=list)

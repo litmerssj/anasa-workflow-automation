@@ -6,6 +6,7 @@ from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
     from .models import (
+        VisibleDirectionApproval,
         VisibleStateUpdate,
         VisibleTicketInput,
         VisibleTicketSnapshot,
@@ -67,6 +68,31 @@ class VisibleTicketWorkflow:
             raise ValueError("visible instruction targets another ticket")
         if not instruction.prompt.strip() or not instruction.author.strip():
             raise ValueError("instruction prompt and author are required")
+
+    @workflow.update
+    def approve_direction(
+        self, approval: VisibleDirectionApproval
+    ) -> VisibleTicketSnapshot:
+        self._snapshot.approved_scope_hash = approval.scope_hash
+        self._snapshot.approved_by = approval.approved_by
+        self._snapshot.current_state = "IMPLEMENT"
+        self._snapshot.transitions.append("IMPLEMENT")
+        return self._copy()
+
+    @approve_direction.validator
+    def validate_direction_approval(
+        self, approval: VisibleDirectionApproval
+    ) -> None:
+        if approval.ticket_id != self._snapshot.ticket_id:
+            raise ValueError("visible direction approval targets another ticket")
+        if self._snapshot.current_state != "WAIT_DIRECTION_APPROVAL":
+            raise ValueError("visible ticket is not waiting for direction approval")
+        if not self._snapshot.scope_hash:
+            raise ValueError("visible ticket has no canonical scope hash")
+        if approval.scope_hash != self._snapshot.scope_hash:
+            raise ValueError("visible direction approval scope hash is stale")
+        if not approval.approved_by.strip():
+            raise ValueError("approved_by is required")
 
     def _copy(self) -> VisibleTicketSnapshot:
         return replace(

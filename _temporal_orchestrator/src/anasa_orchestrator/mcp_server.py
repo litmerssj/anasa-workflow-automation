@@ -80,6 +80,18 @@ async def anasa_sync_visible_ticket(
 
 
 @mcp.tool()
+async def anasa_approve_visible_direction(
+    ticket_id: str, scope_hash: str, approved_by: str = "hong-seokju"
+) -> dict[str, Any]:
+    """Approve the exact canonical scope hash for a visible Codex ticket task."""
+    return asdict(
+        await (await _service()).approve_visible_direction(
+            ticket_id, scope_hash, approved_by
+        )
+    )
+
+
+@mcp.tool()
 async def anasa_get_ticket(ticket_id: str) -> dict[str, Any]:
     """Read one ticket's durable state, reports, Dev Q, PR artifacts, and failures."""
     return asdict(await (await _service()).get_ticket(ticket_id))
