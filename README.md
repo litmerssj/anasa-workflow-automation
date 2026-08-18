@@ -6,6 +6,7 @@ Anasa 프로젝트의 Linear 티켓 수명주기, 담당자 자동 배정, 내�
 
 - `_customer_board`: 고객/내부 운영용 Next.js 보드와 Linear webhook
 - `_diagnosis_worker`: 진단, 분류, 개발·QA 배정, 최종검수 집계를 수행하는 5분 주기 워커
+- `_temporal_orchestrator`: Codex 티켓 작업의 상태·승인·배포 배치를 내구성 있게 관리하는 Temporal shadow-mode PoC
 
 ## Ticket lifecycle
 
@@ -28,6 +29,11 @@ npm run build
 cd ../_diagnosis_worker
 npm test
 npm run dry
+
+cd ../_temporal_orchestrator
+python -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/pytest
 ```
 
 운영 자격증명은 `_customer_board/.env.local`에만 두며 Git에 커밋하지 않습니다. 고객 보드는 Vercel `anasa-customer-board` 프로젝트에, 워커는 macOS `launchd` 서비스 `com.litmers.anasa-linear-worker`로 배포됩니다.
