@@ -9,6 +9,8 @@
 !/_customer_board/**
 !/_diagnosis_worker/
 !/_diagnosis_worker/**
+!/_temporal_orchestrator/
+!/_temporal_orchestrator/**
 
 # Runtime secrets and deployment metadata
 _customer_board/.env
