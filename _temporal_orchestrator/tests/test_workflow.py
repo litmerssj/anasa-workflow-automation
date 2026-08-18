@@ -1,189 +1,350 @@
 import asyncio
 
 import pytest
-from temporalio import activity
+from temporalio import activity, workflow
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
+from anasa_orchestrator.batch_workflow import BackendBatchWorkflow
 from anasa_orchestrator.models import (
     AnalysisResult,
-    BackendBatchRelease,
-    DeploymentInput,
-    DeploymentResult,
+    AnalyzeTicketInput,
+    BackendBatchCompletion,
+    BackendBatchInput,
+    BackendBatchItem,
+    BackendBatchResult,
+    CompleteTicketInput,
+    CompleteTicketResult,
     DirectionApproval,
     ImplementationInput,
     ImplementationResult,
+    MergeFrontendInput,
+    MergeResult,
     PrApproval,
-    QaInput,
-    QaResult,
+    PrArtifact,
+    PreparePrInput,
+    PreparePrResult,
+    QaEvidence,
+    ReleaseAuthorization,
+    RepositoryWorkspace,
+    StartDevelopmentInput,
+    TicketContext,
     TicketPhase,
     TicketWorkflowInput,
+    WorkflowInstruction,
+    WorkspaceResult,
 )
 from anasa_orchestrator.workflow import TicketWorkflow
 
+analysis_calls = 0
+implementation_calls = 0
+prepare_pr_calls = 0
+
+
+@activity.defn(name="prepare_workspace")
+async def prepare_workspace(_) -> WorkspaceResult:
+    return WorkspaceResult(
+        "/tmp/ANA-65",
+        [
+            RepositoryWorkspace(
+                "be_anasa",
+                "/tmp/be",
+                "/tmp/ANA-65/be_anasa",
+                "codex/ana-65-temporal",
+                "origin/develop",
+                "develop",
+            )
+        ],
+    )
+
+
+@activity.defn(name="fetch_ticket")
+async def fetch_ticket(_) -> TicketContext:
+    return TicketContext(
+        "issue",
+        "ANA-65",
+        "ticket",
+        "description",
+        "https://linear/ANA-65",
+        "In Progress",
+        "team",
+        [],
+        [],
+        [],
+    )
+
 
 @activity.defn(name="analyze_ticket")
-async def analyze_ticket(_) -> AnalysisResult:
+async def analyze_ticket(input: AnalyzeTicketInput) -> AnalysisResult:
+    global analysis_calls
+    analysis_calls += 1
+    version = 2 if input.additional_instructions else 1
     return AnalysisResult(
         ticket_id="ANA-65",
-        scope_statement="test scope",
+        scope_statement=f"scope {version}",
         acceptance_criteria=["exact approval gates"],
-        repositories=["be_anasa"],
-        backend_change=True,
+        repositories=["fe_anasa"],
+        backend_change=False,
         unresolved_decisions=[],
         recommendation="test",
-        scope_hash="scope-v1",
+        report_markdown=f"analysis report {version}",
+        dev_question=None,
+        scope_hash=f"scope-v{version}",
         codex_thread_id="thread-1",
     )
 
 
-@activity.defn(name="inspect_implementation")
-async def inspect_implementation(_: ImplementationInput) -> ImplementationResult:
+@activity.defn(name="implement_ticket")
+async def implement_ticket(_: ImplementationInput) -> ImplementationResult:
+    global implementation_calls
+    implementation_calls += 1
     return ImplementationResult(
-        summary="existing candidate",
-        pr_url="https://example.test/pr/1",
-        pr_head_sha="abc123",
-        backend_change=True,
+        summary=f"implementation {implementation_calls}",
+        report_markdown=f"implementation report {implementation_calls}",
+        changed_repositories=["fe_anasa"],
         verification=["tests passed"],
         risks=[],
+        column_impact="none",
+        workbook_basis="none",
         codex_thread_id="thread-1",
     )
 
 
-@activity.defn(name="plan_deployment")
-async def plan_deployment(input: DeploymentInput) -> DeploymentResult:
-    return DeploymentResult("shadow:batch-1", f"shadow:{input.approved_sha}", "shadow")
+@activity.defn(name="mark_in_progress")
+async def mark_in_progress(_: StartDevelopmentInput) -> str:
+    return "In Progress"
 
 
-@activity.defn(name="plan_qa")
-async def plan_qa(_: QaInput) -> QaResult:
-    return QaResult("shadow", ["no mutation"])
-
-
-@activity.defn(name="inspect_implementation")
-async def failing_inspect(_: ImplementationInput) -> ImplementationResult:
-    raise RuntimeError("candidate inspection failed")
-
-
-async def wait_for_phase(handle, phase: TicketPhase) -> None:
-    snapshot = None
-    for _ in range(100):
-        snapshot = await handle.query(TicketWorkflow.get_status)
-        if snapshot.current_state == phase.value:
-            return
-        await asyncio.sleep(0.01)
-    events = [event async for event in handle.fetch_history_events()]
-    event_types = [str(event.event_type) for event in events]
-    raise AssertionError(
-        f"workflow never reached {phase}; snapshot={snapshot}; events={event_types}"
+@activity.defn(name="prepare_prs")
+async def prepare_prs(_: PreparePrInput) -> PreparePrResult:
+    global prepare_pr_calls
+    prepare_pr_calls += 1
+    return PreparePrResult(
+        artifacts=[
+            PrArtifact(
+                repository="fe_anasa",
+                pr_url="https://github.test/pr/1",
+                head_sha=f"abc{prepare_pr_calls}",
+                branch_name="codex/ana-65-temporal",
+                base_branch="main",
+                backend_change=False,
+                has_changes=True,
+            )
+        ],
+        no_change=False,
     )
 
 
-def error_chain(error: BaseException) -> str:
-    messages: list[str] = []
-    current: BaseException | None = error
-    while current is not None:
-        messages.append(str(current))
-        current = current.__cause__ or current.__context__
-    return " | ".join(messages)
+@activity.defn(name="merge_frontend")
+async def merge_frontend(_: MergeFrontendInput) -> MergeResult:
+    return MergeResult({"fe_anasa": "merged-fe"}, ["https://frontend"])
+
+
+@activity.defn(name="complete_ticket")
+async def complete_ticket(_: CompleteTicketInput) -> CompleteTicketResult:
+    return CompleteTicketResult("comment", "QA Request")
+
+
+@activity.defn(name="execute_backend_batch")
+async def execute_backend_batch(input: BackendBatchInput) -> BackendBatchResult:
+    return BackendBatchResult(
+        batch_id=input.batch_id,
+        deployed_sha="deployed-sha",
+        deployment_url="https://deploy",
+        merged_shas={"ANA-65": "abc2"},
+    )
+
+
+@workflow.defn
+class BatchReceiverWorkflow:
+    def __init__(self) -> None:
+        self._completion = None
+
+    @workflow.run
+    async def run(self) -> str:
+        await workflow.wait_condition(lambda: self._completion is not None)
+        return self._completion.deployed_sha
+
+    @workflow.signal(name="backend_batch_completed")
+    def backend_batch_completed(self, completion: BackendBatchCompletion) -> None:
+        self._completion = completion
+
+
+async def wait_for(handle, predicate, message: str) -> object:
+    snapshot = None
+    for _ in range(200):
+        snapshot = await handle.query(TicketWorkflow.get_status)
+        if predicate(snapshot):
+            return snapshot
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"{message}; snapshot={snapshot}")
 
 
 @pytest.mark.asyncio
-async def test_exact_sha_and_backend_batch_gates() -> None:
+async def test_followup_instructions_invalidate_scope_and_pr_then_complete() -> None:
+    global analysis_calls, implementation_calls, prepare_pr_calls
+    analysis_calls = implementation_calls = prepare_pr_calls = 0
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,
             task_queue="test-queue",
             workflows=[TicketWorkflow],
             activities=[
+                prepare_workspace,
+                fetch_ticket,
                 analyze_ticket,
-                inspect_implementation,
-                plan_deployment,
-                plan_qa,
+                mark_in_progress,
+                implement_ticket,
+                prepare_prs,
+                merge_frontend,
+                complete_ticket,
             ],
         ):
             handle = await env.client.start_workflow(
                 TicketWorkflow.run,
-                TicketWorkflowInput("ANA-65", "/tmp/worktree"),
+                TicketWorkflowInput("ANA-65", mode="live"),
                 id="test-ana-65",
                 task_queue="test-queue",
             )
-            await wait_for_phase(handle, TicketPhase.WAIT_DIRECTION_APPROVAL)
-
-            with pytest.raises(Exception) as stale_scope:
-                await handle.execute_update(
-                    TicketWorkflow.approve_direction,
-                    DirectionApproval("ANA-65", "stale", "tester"),
-                )
-            assert "scope hash changed" in error_chain(stale_scope.value)
+            await wait_for(
+                handle,
+                lambda value: (
+                    value.current_state == TicketPhase.WAIT_DIRECTION_APPROVAL.value
+                    and value.scope_hash == "scope-v1"
+                ),
+                "initial analysis",
+            )
+            await handle.execute_update(
+                TicketWorkflow.add_instruction,
+                WorkflowInstruction("ANA-65", "include new evidence", "tester"),
+            )
+            await wait_for(
+                handle,
+                lambda value: (
+                    value.current_state == TicketPhase.WAIT_DIRECTION_APPROVAL.value
+                    and value.scope_hash == "scope-v2"
+                ),
+                "re-analysis",
+            )
             await handle.execute_update(
                 TicketWorkflow.approve_direction,
-                DirectionApproval("ANA-65", "scope-v1", "tester"),
+                DirectionApproval("ANA-65", "scope-v2", "tester"),
             )
-
-            await wait_for_phase(handle, TicketPhase.WAIT_PR_APPROVAL)
-            with pytest.raises(Exception) as stale_sha:
-                await handle.execute_update(
-                    TicketWorkflow.approve_pr,
-                    PrApproval("ANA-65", "stale", "tester"),
-                )
-            assert "PR head changed" in error_chain(stale_sha.value)
+            await wait_for(
+                handle,
+                lambda value: (
+                    value.current_state == TicketPhase.WAIT_PR_APPROVAL.value
+                    and value.pr_artifacts[0].head_sha == "abc1"
+                ),
+                "first PR",
+            )
+            await handle.execute_update(
+                TicketWorkflow.add_instruction,
+                WorkflowInstruction("ANA-65", "adjust implementation", "tester"),
+            )
+            await wait_for(
+                handle,
+                lambda value: (
+                    value.current_state == TicketPhase.WAIT_DIRECTION_APPROVAL.value
+                    and len(value.instruction_history) == 2
+                ),
+                "fresh direction approval after PR-stage instruction",
+            )
+            await handle.execute_update(
+                TicketWorkflow.approve_direction,
+                DirectionApproval("ANA-65", "scope-v2", "tester"),
+            )
+            await wait_for(
+                handle,
+                lambda value: (
+                    value.current_state == TicketPhase.WAIT_PR_APPROVAL.value
+                    and value.pr_artifacts[0].head_sha == "abc2"
+                ),
+                "updated PR",
+            )
             await handle.execute_update(
                 TicketWorkflow.approve_pr,
-                PrApproval("ANA-65", "abc123", "tester"),
+                PrApproval("ANA-65", {"fe_anasa": "abc2"}, "tester"),
             )
-
-            await wait_for_phase(handle, TicketPhase.WAIT_BACKEND_BATCH)
+            await wait_for(
+                handle,
+                lambda value: value.current_state == TicketPhase.WAIT_RELEASE_AUTHORIZATION.value,
+                "frontend release wait",
+            )
             await handle.execute_update(
-                TicketWorkflow.release_backend_batch,
-                BackendBatchRelease("ANA-65", "batch-1", "abc123"),
+                TicketWorkflow.authorize_release,
+                ReleaseAuthorization("ANA-65", {"fe_anasa": "abc2"}, True, "tester"),
+            )
+            await wait_for(
+                handle,
+                lambda value: value.current_state == TicketPhase.WAIT_QA_EVIDENCE.value,
+                "QA evidence wait",
+            )
+            handle = env.client.get_workflow_handle_for(TicketWorkflow.run, "test-ana-65")
+            await handle.execute_update(
+                TicketWorkflow.submit_qa_evidence,
+                QaEvidence(
+                    "ANA-65",
+                    "PR #1 / abc2",
+                    "staging smoke passed",
+                    "zero accepted",
+                    "zero rejected",
+                ),
             )
             result = await handle.result()
 
     assert result.current_state == TicketPhase.COMPLETE.value
-    assert result.scope_hash == "scope-v1"
-    assert result.approved_sha == "abc123"
-    assert result.backend_batch_id == "batch-1"
-    assert result.external_effects is False
-    assert result.transitions == [
-        "ANALYZE",
-        "WAIT_DIRECTION_APPROVAL",
-        "IMPLEMENT",
-        "WAIT_PR_APPROVAL",
-        "WAIT_BACKEND_BATCH",
-        "DEPLOY",
-        "QA",
-        "COMPLETE",
-    ]
+    assert result.approved_shas == {"fe_anasa": "abc2"}
+    assert result.deployed_sha == "merged-fe"
+    assert result.qa_status == "QA Request"
+    assert len(result.instruction_history) == 2
+    assert analysis_calls == 3
+    assert implementation_calls == 2
 
 
 @pytest.mark.asyncio
-async def test_activity_failure_is_contained_as_blocked_state() -> None:
+async def test_backend_batch_signals_each_ticket_after_deployment() -> None:
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,
-            task_queue="failure-queue",
-            workflows=[TicketWorkflow],
-            activities=[
-                analyze_ticket,
-                failing_inspect,
-                plan_deployment,
-                plan_qa,
-            ],
+            task_queue="batch-queue",
+            workflows=[BackendBatchWorkflow, BatchReceiverWorkflow],
+            activities=[execute_backend_batch],
         ):
-            handle = await env.client.start_workflow(
-                TicketWorkflow.run,
-                TicketWorkflowInput("ANA-65", "/tmp/worktree"),
-                id="test-ana-65-failure",
-                task_queue="failure-queue",
+            receiver = await env.client.start_workflow(
+                BatchReceiverWorkflow.run,
+                id="receiver-1",
+                task_queue="batch-queue",
             )
-            await wait_for_phase(handle, TicketPhase.WAIT_DIRECTION_APPROVAL)
-            await handle.execute_update(
-                TicketWorkflow.approve_direction,
-                DirectionApproval("ANA-65", "scope-v1", "tester"),
+            batch = await env.client.start_workflow(
+                BackendBatchWorkflow.run,
+                BackendBatchInput(
+                    "batch-1",
+                    [
+                        BackendBatchItem(
+                            ticket_id="ANA-65",
+                            workflow_id="receiver-1",
+                            artifacts=[
+                                PrArtifact(
+                                    repository="be_anasa",
+                                    pr_url="https://github.test/pr/1",
+                                    head_sha="abc2",
+                                    branch_name="codex/ana-65-temporal",
+                                    base_branch="develop",
+                                    backend_change=True,
+                                    has_changes=True,
+                                )
+                            ],
+                            approved_shas={"be_anasa": "abc2"},
+                        )
+                    ],
+                    "tester",
+                ),
+                id="batch-1",
+                task_queue="batch-queue",
             )
-            result = await handle.result()
+            batch_result = await batch.result()
+            receiver_result = await receiver.result()
 
-    assert result.current_state == TicketPhase.BLOCKED.value
-    assert "candidate inspection failed" in (result.last_failure or "")
-    assert result.external_effects is False
+    assert batch_result.current_state == "COMPLETE"
+    assert receiver_result == "deployed-sha"

@@ -9,6 +9,8 @@ description = "Durable Temporal control plane for ANASA Codex ticket workers"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "httpx==0.28.1",
+  "mcp==1.29.0",
   "openai-codex==0.144.4",
   "pydantic>=2.12,<3",
   "temporalio==1.31.0",
@@ -16,12 +18,22 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "PyYAML==6.0.3",
   "pytest==9.1.1",
   "pytest-asyncio==1.4.0",
+  "ruff==0.16.3",
 ]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
 
 [project.scripts]
 anasa-orchestrator = "anasa_orchestrator.cli:main"
+anasa-local = "anasa_orchestrator.supervisor:main"
+anasa-mcp = "anasa_orchestrator.mcp_server:main"
 anasa-worker = "anasa_orchestrator.worker:main"
 
 [tool.hatch.build.targets.wheel]

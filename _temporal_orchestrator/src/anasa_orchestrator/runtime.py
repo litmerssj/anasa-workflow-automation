@@ -4,10 +4,9 @@ import os
 
 from temporalio.client import Client
 
-
 DEFAULT_ADDRESS = "localhost:7233"
 DEFAULT_NAMESPACE = "default"
-DEFAULT_TASK_QUEUE = "anasa-ticket-workers"
+DEFAULT_TASK_QUEUE = "anasa-ticket-workers-v2"
 
 
 async def connect_client() -> Client:

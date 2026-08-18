@@ -1,117 +1,160 @@
-# ANASA Temporal Orchestrator PoC
+# ANASA Temporal Control Plane
 
-This is a separate, shadow-mode control plane for ANASA ticket work. It does not
-modify `be_anasa`, `fe_anasa`, Linear, GitHub, Vercel, EC2, stored procedures, or
-business data.
-
-The first version proves that the manager can hold durable ticket state instead of
-manually injecting prose into every Codex task:
+ANASA 티켓의 조사, 사용자 보고, 개발방향 승인, Codex 구현, PR exact-SHA 승인,
+backend 통합 배포, QA 증빙을 durable Temporal Workflow로 관리합니다.
 
 ```text
-ANALYZE
-  -> WAIT_CUSTOMER_ANSWER (when needed)
-  -> WAIT_DIRECTION_APPROVAL
-  -> IMPLEMENT (read-only inspection in this PoC)
-  -> WAIT_PR_APPROVAL
-  -> WAIT_BACKEND_BATCH (backend tickets only)
-  -> DEPLOY (plan only)
-  -> QA (plan only)
-  -> COMPLETE
+Codex 앱 ── ANASA MCP Plugin ── Temporal ── Codex SDK ticket worker
+                                  ├── Linear
+                                  ├── Git/GitHub
+                                  └── approved deployment workflow
 ```
 
-## Safety boundary
+평소 사용자 화면은 Codex 앱입니다. `localhost:8233`의 Temporal 기본 UI는 Workflow
+event history와 장애를 디버깅할 때만 사용합니다.
 
-- `shadow_mode=False` is rejected by the Workflow.
-- Every Codex turn uses `Sandbox.read_only` and `ApprovalMode.deny_all`.
-- Implementation is an inspection of an existing candidate; it cannot edit or open a PR.
-- Deployment and QA Activities return explicit `SHADOW_*` records without external calls.
-- Direction approval is bound to `scope_hash`.
-- PR approval and backend batch release are bound to the exact PR head SHA.
-- Temporal Updates validate gates synchronously, so a stale approval is rejected before it
-  is accepted into Workflow History.
+## 한 번에 실행
 
-## Stored ticket state
-
-Each Workflow Query returns:
-
-```text
-ticket_id, current_state, worktree_path, codex_thread_id,
-scope_hash, pr_head_sha, approved_sha, backend_batch_id,
-deployed_sha, qa_status, last_failure, transitions
-```
-
-The Workflow ID is deterministic: `anasa-ticket-ANA-<number>`. This prevents a second
-manager from accidentally creating a duplicate active Workflow for the same ticket.
-
-## Local setup
-
-Python 3.10+ and a local Temporal development server are required.
+Python 환경과 Temporal CLI를 최초 한 번 준비합니다.
 
 ```bash
-python -m venv .venv
+cd /Users/cigro/Desktop/anasa-workflow-automation/_temporal_orchestrator
+python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
-temporal server start-dev --db-filename .temporal/temporal.db
+brew install temporal
 ```
 
-In another terminal, start the worker:
+Linear 자격증명은 기존 원칙대로 `_customer_board/.env.local` 한 곳에만 둡니다.
+오케스트레이터의 비밀이 아닌 로컬 설정은 이 디렉터리의 `.env`를 사용합니다.
 
 ```bash
-.venv/bin/anasa-worker
+cp ../_customer_board/.env.example ../_customer_board/.env.local
+cp .env.example .env
 ```
 
-Start a read-only shadow ticket and inspect its state:
+GitHub PR·merge·workflow 조작에는 유효한 GitHub CLI 인증이 필요합니다.
 
 ```bash
-.venv/bin/anasa-orchestrator start ANA-65 /absolute/path/to/its/worktree
-.venv/bin/anasa-orchestrator status ANA-65
+gh auth login -h github.com
 ```
 
-Approvals are explicit, validated Temporal Updates:
+이후에는 아래 명령 하나로 Temporal 서버(없을 때만)와 v2 worker를 실행합니다.
 
 ```bash
-.venv/bin/anasa-orchestrator approve-direction ANA-65 <scope-hash>
-.venv/bin/anasa-orchestrator approve-pr ANA-65 <exact-pr-head-sha>
-.venv/bin/anasa-orchestrator release-backend-batch ANA-65 <batch-id> <approved-sha>
+.venv/bin/anasa-local
 ```
 
-If analysis has an unresolved customer decision:
+Codex 앱의 `anasa-control-plane` 플러그인이 이 worker와 통신합니다. 기존에 수동으로
+실행한 `anasa-worker`는 v1 task queue를 사용하므로 새 v2 worker와 섞이지 않습니다.
 
-```bash
-.venv/bin/anasa-orchestrator customer-answer ANA-65 '<answer>'
-```
+## Codex 앱에서 하는 일
 
-Configuration:
+- `63, 65, 76`처럼 최대 8개 티켓 일괄 시작
+- Linear description, 댓글, 첨부·연관 티켓을 포함한 읽기 전용 분석
+- 다음 형식의 텍스트 보고
+  - 티켓 이해 내용
+  - 현재 동작과 원인
+  - 개발 방향
+  - 변경 영향
+  - 검증 계획
+  - 남은 결정/위험
+- 고객 결정이 필요하면 `[Dev Q]` 텍스트 보고
+- 진행 중 Workflow에 추가 프롬프트 전달
+- scope hash 개발방향 승인
+- 구현·테스트 후 생성된 FE/BE PR exact SHA 승인
+- 승인 backend 티켓을 지정해 한 배치로 merge·staging deploy
+- FE production release 명시 승인
+- 실제 스모크·수정 전·수정 후 증거를 입력한 뒤 최종 Linear qaEvidence와 QA Request
+
+추가 프롬프트는 같은 `codex_thread_id`를 resume합니다. 개발방향 승인 전이면 재분석하고,
+PR 승인 전이면 재구현·재검증하여 새 head SHA를 만들고 이전 승인을 무효화합니다. Backend
+batch assignment 또는 release가 시작된 뒤에는 같은 Workflow의 범위 변경을 차단합니다.
+
+## Workflow
 
 ```text
-TEMPORAL_ADDRESS      default localhost:7233
-TEMPORAL_NAMESPACE    default default
-ANASA_TASK_QUEUE      default anasa-ticket-workers
+PREPARE_WORKSPACE
+→ FETCH_TICKET
+→ ANALYZE
+→ WAIT_CUSTOMER_ANSWER (필요 시)
+→ WAIT_DIRECTION_APPROVAL
+→ START_DEVELOPMENT
+→ IMPLEMENT
+→ PREPARE_PR
+→ WAIT_PR_APPROVAL
+→ WAIT_BACKEND_BATCH (BE 변경)
+→ WAIT_RELEASE_AUTHORIZATION (FE 변경)
+→ WAIT_QA_EVIDENCE
+→ COMPLETE_LINEAR
+→ COMPLETE
 ```
 
-## What is deliberately not implemented yet
+Activity가 3회 실패하면 Workflow는 종료되지 않고 `BLOCKED`에서 원인과 resume state를
+보존합니다. 동일 범위·artifact 재시도만 허용하며, 행동 변경은 추가 프롬프트와 새 승인을
+거칩니다.
 
-- Linear and GitHub webhooks
-- creation/adoption of Codex app tasks and git worktrees
-- live implementation, merge, deployment, rollback, staging mutation, or qaEvidence
-- a backend batch parent Workflow
-- workflow versioning and Continue-As-New for very long ticket histories
-- authentication, RBAC, secrets, production Temporal namespace, and observability
+## 실제 구현 경계
 
-Those are promotion steps after one historical ticket completes shadow comparison against
-the current manager.
+- Workflow 시작: 티켓별 `/Users/cigro/Desktop/.anasa-worktrees/ANA-N/...` FE/BE worktree 생성
+- 분석: Codex `Sandbox.read_only` + `ApprovalMode.deny_all`
+- 개발방향 승인 후 구현: Codex `Sandbox.workspace_write` + `ApprovalMode.deny_all`
+- Codex는 코드·테스트만 변경하며 commit/push/PR/Linear/deploy는 Temporal Activity가 담당
+- PR 승인은 repository → exact head SHA map에 결박
+- backend batch는 포함 티켓과 승인 SHA manifest를 고정한 뒤 merge하고 배포 workflow를 1회 실행
+- 최종 Linear comment는 workflow-core의 `PR/커밋`, `스모크`, `수정 전`, `수정 후` 계약만 작성
 
-## Verification
+`ANASA_PREVIEW_ONLY=true`가 기본값입니다. 프리뷰 성공은 staging smoke·qaEvidence·완료를
+대체하지 않습니다. Named release를 허용하려면 `.env`의 `ANASA_RELEASE_TICKETS`에
+`ANA-65,ANA-76`처럼 exact scope를 넣고 worker를 재시작해야 합니다. 그 뒤에도 FE
+production과 backend staging tool은 각각 `PRODUCTION ANA-N`,
+`DEPLOY BACKEND <batch-id>` 확인 문구가 필요합니다.
+
+## 로컬 보안
+
+- MCP server는 Codex가 로컬 stdio child process로만 실행하고 네트워크 포트를 열지 않음
+- 조회와 보고는 자유롭지만 scope/SHA/deploy/qaEvidence는 별도 명시 승인 필요
+- Backend와 FE release tool은 각각 `DEPLOY BACKEND <batch-id>`, `PRODUCTION ANA-N` 확인 필요
+- 비밀값과 `.temporal` DB는 Git에서 제외
+
+## Codex 앱 플러그인
+
+개인 plugin `anasa-control-plane`은 `anasa-mcp` stdio server를 통해 같은 Temporal service를
+사용합니다. 새 Codex 작업에서 다음과 같이 말할 수 있습니다.
+
+```text
+65 상태와 조사 보고 보여줘
+65에 "FE만 수정하고 컬럼은 그대로 유지"라고 추가 지시해
+65 개발 방향 승인
+65 PR exact SHA 승인
+65, 76을 batch-20260818로 backend 배포
+```
+
+플러그인은 사용자의 명시적 승인 없이 direction, SHA, backend deployment, FE production,
+qaEvidence를 추론하지 않습니다.
+
+## CLI 백업
+
+```bash
+anasa-orchestrator start '63,65' --prompt '추가 지시'
+anasa-orchestrator status ANA-65
+anasa-orchestrator instruction ANA-65 '진행 중 추가 지시'
+anasa-orchestrator approve-direction ANA-65 <scope-hash>
+anasa-orchestrator approve-pr ANA-65 be_anasa=<sha> fe_anasa=<sha>
+```
+
+## 검증
 
 ```bash
 .venv/bin/pytest
+.venv/bin/python -m pip check
 ```
 
-The Temporal integration test starts an ephemeral test service, drives a backend ticket
-through the full state machine, rejects stale scope/SHA approvals, and verifies that the
-result records no external effects.
+테스트는 Temporal ephemeral server에서 scope/PR 승인 무효화, 진행 중 프롬프트 재분석·
+재구현, backend batch gate, qaEvidence, BLOCKED retry, MCP stdio tool
+노출을 검증합니다.
 
 ## Sources
 
 - [OpenAI Codex SDK](https://developers.openai.com/codex/codex-sdk)
 - [Temporal Python SDK](https://docs.temporal.io/develop/python)
-- [Temporal Python Workflow messages](https://docs.temporal.io/develop/python/workflows/message-passing)
+- [Temporal Workflow message passing](https://docs.temporal.io/develop/python/workflows/message-passing)

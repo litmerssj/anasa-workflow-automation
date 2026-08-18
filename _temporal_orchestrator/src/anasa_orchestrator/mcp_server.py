@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+from dataclasses import asdict
+from typing import Any
+
+from mcp.server.fastmcp import FastMCP
+
+from .runtime import connect_client
+from .service import OrchestratorService
+
+mcp = FastMCP(
+    "ANASA Control Plane",
+    instructions=(
+        "Manage durable ANASA ticket workflows. Read status and reports freely. "
+        "Never infer direction, exact-SHA, backend deployment, frontend production, "
+        "or qaEvidence approval. Call the corresponding mutation tool only when the "
+        "user explicitly authorizes that exact ticket and scope."
+    ),
+)
+
+
+async def _service() -> OrchestratorService:
+    return OrchestratorService(await connect_client())
+
+
+@mcp.tool()
+async def anasa_list_tickets() -> list[dict[str, Any]]:
+    """List every Temporal-managed ANASA ticket with reports and attention state."""
+    return await (await _service()).list_tickets()
+
+
+@mcp.tool()
+async def anasa_get_ticket(ticket_id: str) -> dict[str, Any]:
+    """Read one ticket's durable state, reports, Dev Q, PR artifacts, and failures."""
+    return asdict(await (await _service()).get_ticket(ticket_id))
+
+
+@mcp.tool()
+async def anasa_list_backend_batches() -> list[dict[str, Any]]:
+    """List backend batch manifests, deployment results, reports, and failures."""
+    return await (await _service()).list_backend_batches()
+
+
+@mcp.tool()
+async def anasa_start_tickets(
+    tickets: str,
+    instruction: str = "",
+    mode: str = "live",
+) -> list[dict[str, str]]:
+    """Start or adopt up to eight comma/space-separated ANA tickets."""
+    return await (await _service()).start_tickets(tickets, user_instruction=instruction, mode=mode)
+
+
+@mcp.tool()
+async def anasa_add_instruction(
+    ticket_id: str, prompt: str, author: str = "hong-seokju"
+) -> dict[str, Any]:
+    """Add a follow-up prompt before release processing and resume the same Codex thread."""
+    return asdict(await (await _service()).add_instruction(ticket_id, prompt, author))
+
+
+@mcp.tool()
+async def anasa_answer_customer(ticket_id: str, answer: str) -> dict[str, Any]:
+    """Apply the customer's explicit answer to a waiting ticket and re-run analysis."""
+    return asdict(await (await _service()).answer_customer(ticket_id, answer))
+
+
+@mcp.tool()
+async def anasa_approve_direction(
+    ticket_id: str, scope_hash: str, approved_by: str = "hong-seokju"
+) -> dict[str, Any]:
+    """Approve exactly the reported scope hash, enabling implementation."""
+    return asdict(await (await _service()).approve_direction(ticket_id, scope_hash, approved_by))
+
+
+@mcp.tool()
+async def anasa_approve_prs(
+    ticket_id: str,
+    exact_shas: dict[str, str],
+    approved_by: str = "hong-seokju",
+) -> dict[str, Any]:
+    """Approve the exact FE/BE PR heads reported by the ticket workflow."""
+    return asdict(await (await _service()).approve_prs(ticket_id, exact_shas, approved_by))
+
+
+@mcp.tool()
+async def anasa_start_backend_batch(
+    ticket_ids: list[str],
+    batch_id: str,
+    confirmation: str,
+    approved_by: str = "hong-seokju",
+) -> dict[str, str]:
+    """Merge and deploy approved backend SHAs. confirmation must equal DEPLOY BACKEND <batch_id>."""
+    expected = f"DEPLOY BACKEND {batch_id}"
+    if confirmation != expected:
+        raise ValueError(f"confirmation must equal: {expected}")
+    return await (await _service()).start_backend_batch(ticket_ids, batch_id, approved_by)
+
+
+@mcp.tool()
+async def anasa_authorize_frontend_production(
+    ticket_id: str,
+    exact_shas: dict[str, str],
+    confirmation: str,
+    approved_by: str = "hong-seokju",
+) -> dict[str, Any]:
+    """Authorize FE main merge/production. confirmation must equal PRODUCTION <ticket_id>."""
+    expected = f"PRODUCTION {ticket_id}"
+    if confirmation != expected:
+        raise ValueError(f"confirmation must equal: {expected}")
+    return asdict(
+        await (await _service()).authorize_frontend_release(ticket_id, exact_shas, approved_by)
+    )
+
+
+@mcp.tool()
+async def anasa_submit_qa_evidence(
+    ticket_id: str,
+    pr_commit: str,
+    smoke: str,
+    before: str,
+    after: str,
+) -> dict[str, Any]:
+    """Submit actual verification evidence, create final Linear evidence, and request QA."""
+    return asdict(
+        await (await _service()).submit_qa_evidence(
+            ticket_id,
+            pr_commit=pr_commit,
+            smoke=smoke,
+            before=before,
+            after=after,
+        )
+    )
+
+
+@mcp.tool()
+async def anasa_retry(ticket_id: str, requested_by: str = "hong-seokju") -> dict[str, Any]:
+    """Retry the exact blocked phase without changing scope or approval artifacts."""
+    return asdict(await (await _service()).retry_ticket(ticket_id, requested_by))
+
+
+@mcp.tool()
+async def anasa_retry_backend_batch(
+    batch_id: str, requested_by: str = "hong-seokju"
+) -> dict[str, Any]:
+    """Retry the exact blocked backend batch manifest without changing its SHAs."""
+    return asdict(await (await _service()).retry_backend_batch(batch_id, requested_by))
+
+
+def main() -> None:
+    mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()

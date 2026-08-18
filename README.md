@@ -6,7 +6,8 @@ Anasa 프로젝트의 Linear 티켓 수명주기, 담당자 자동 배정, 내�
 
 - `_customer_board`: 고객/내부 운영용 Next.js 보드와 Linear webhook
 - `_diagnosis_worker`: 진단, 분류, 개발·QA 배정, 최종검수 집계를 수행하는 5분 주기 워커
-- `_temporal_orchestrator`: Codex 티켓 작업의 상태·승인·배포 배치를 내구성 있게 관리하는 Temporal shadow-mode PoC
+- `_temporal_orchestrator`: Codex 티켓 작업의 분석·구현·승인·PR·배포 배치·QA를 내구성 있게 관리하는 Temporal control plane
+- `plugins/anasa-control-plane`: Codex 앱에서 Temporal 티켓 상태와 승인 게이트를 조작하는 MCP 플러그인
 
 ## Ticket lifecycle
 

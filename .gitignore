@@ -11,6 +11,8 @@
 !/_diagnosis_worker/**
 !/_temporal_orchestrator/
 !/_temporal_orchestrator/**
+!/plugins/
+!/plugins/**
 
 # Runtime secrets and deployment metadata
 _customer_board/.env

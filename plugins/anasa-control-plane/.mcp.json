@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "anasa-temporal": {
+      "command": "/Users/cigro/Desktop/anasa-workflow-automation/_temporal_orchestrator/.venv/bin/anasa-mcp",
+      "args": [],
+      "env": {
+        "TEMPORAL_ADDRESS": "localhost:7233",
+        "TEMPORAL_NAMESPACE": "default",
+        "ANASA_TASK_QUEUE": "anasa-ticket-workers-v2"
+      }
+    }
+  }
+}
