@@ -132,3 +132,22 @@ async def test_worktree_manager_creates_and_adopts_isolated_ticket_workspace(
     )
     created_ana_68 = await manager.prepare("ANA-68")
     assert created_ana_68.repositories[0].branch_name == "codex/ana-68-temporal"
+
+    phantom = tmp_path / "phantom-ana-69"
+    subprocess.run(
+        [
+            "git",
+            "worktree",
+            "add",
+            "-b",
+            "codex/ana-69-existing",
+            str(phantom),
+            "origin/develop",
+        ],
+        cwd=checkout,
+        check=True,
+        capture_output=True,
+    )
+    (phantom / ".git").unlink()
+    created_ana_69 = await manager.prepare("ANA-69")
+    assert created_ana_69.repositories[0].branch_name == "codex/ana-69-temporal"

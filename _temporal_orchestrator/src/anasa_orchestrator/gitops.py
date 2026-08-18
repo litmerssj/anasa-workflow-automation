@@ -126,6 +126,8 @@ class WorktreeManager:
             path = Path(raw_path).resolve()
             if path in {source, expected}:
                 continue
+            if not (path / ".git").exists():
+                continue
             branch = fields.get("branch", "").lower()
             if ticket_pattern.search(branch) or ticket_pattern.search(path.name.lower()):
                 matches.append(path)
