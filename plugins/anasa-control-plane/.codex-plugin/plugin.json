@@ -1,10 +1,17 @@
 {
   "name": "anasa-control-plane",
-  "version": "0.1.0+codex.20260819005528",
+  "version": "0.2.0+codex.20260819021438",
   "description": "Register visible ANASA ticket sessions and coordinate fast FE/BE integration batches through Temporal.",
   "author": {
     "name": "litmerssj"
   },
+  "homepage": "https://github.com/litmers-dev/anasa-workflow-automation/tree/codex/temporal-local-opt-in",
+  "repository": "https://github.com/litmers-dev/anasa-workflow-automation",
+  "keywords": [
+    "anasa",
+    "temporal",
+    "integration"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Anasa Control Plane",
@@ -17,7 +24,11 @@
       "Backend integration merge and deployment",
       "Frontend integration merge and release"
     ],
-    "defaultPrompt": "Show FE and BE integration candidates. Do not infer approvals."
+    "defaultPrompt": [
+      "Show FE and BE integration candidates. Do not infer approvals.",
+      "Register these ANA ticket tasks in Temporal.",
+      "Check the local ANASA Temporal worker health."
+    ]
   },
   "mcpServers": "./.mcp.json"
 }

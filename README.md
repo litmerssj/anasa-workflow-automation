@@ -2,6 +2,44 @@
 
 Anasa 프로젝트의 Linear 티켓 수명주기, 담당자 자동 배정, 내부 QA, 고객 보드와 모듈 단위 최종검수를 관리하는 운영 자동화 모노레포입니다.
 
+## Temporal control plane 선택 설치
+
+이 브랜치의 Temporal 기능은 필요한 사람만 각자의 Mac에 설치해서 사용합니다. 중앙 서버나
+공용 workflow 상태는 사용하지 않습니다.
+
+준비물은 ChatGPT 데스크톱 앱의 Codex, Git, GitHub CLI 로그인입니다. 저장소와
+`be_anasa`, `fe_anasa`, `fe-anasa-ord`를 같은 상위 폴더에 둔 뒤 한 번만 실행합니다.
+
+```bash
+git clone --branch codex/temporal-local-opt-in \
+  https://github.com/litmers-dev/anasa-workflow-automation.git
+cd anasa-workflow-automation
+./setup-anasa-control-plane
+```
+
+설치 명령은 다음 작업을 자동으로 처리합니다.
+
+- Python 가상환경과 ANASA runtime 설치
+- Temporal CLI가 없으면 Homebrew로 설치
+- 로그인 시 자동 실행되는 로컬 Temporal server/worker 등록
+- 저장소 Codex marketplace와 `anasa-control-plane` 플러그인 설치
+- 개인 경로를 반영한 `.env` 생성
+- worker health 확인
+
+완료 후 ChatGPT 데스크톱 앱을 재시작하고 새 Codex 작업에서
+`ANASA Temporal 상태 확인`이라고 요청합니다.
+
+업데이트는 해당 브랜치에서 아래 두 명령만 다시 실행합니다.
+
+```bash
+git pull --ff-only
+./setup-anasa-control-plane
+```
+
+기본값은 `ANASA_PREVIEW_ONLY=true`입니다. PR head, 배포, production, fixture,
+qaEvidence 승인은 자동 추론하지 않습니다. 상세 운영 및 중지 방법은
+[_temporal_orchestrator/README.md](_temporal_orchestrator/README.md)를 참고합니다.
+
 ## Packages
 
 - `_customer_board`: 고객/내부 운영용 Next.js 보드와 Linear webhook

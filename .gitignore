@@ -3,6 +3,10 @@
 !/.gitignore
 !/.graphiti
 !/README.md
+!/setup-anasa-control-plane
+!/.agents/
+!/.agents/plugins/
+!/.agents/plugins/marketplace.json
 !/docs/
 !/docs/**
 !/_customer_board/
@@ -20,6 +24,7 @@ _customer_board/.env*.local
 _customer_board/.vercel/
 _diagnosis_worker/.env
 _diagnosis_worker/.env*.local
+_temporal_orchestrator/.env
 
 # Dependencies and build output
 **/node_modules/

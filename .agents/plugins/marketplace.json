@@ -1,0 +1,20 @@
+{
+  "name": "anasa-workflow-automation",
+  "interface": {
+    "displayName": "Anasa Workflow Automation"
+  },
+  "plugins": [
+    {
+      "name": "anasa-control-plane",
+      "source": {
+        "source": "local",
+        "path": "./plugins/anasa-control-plane"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

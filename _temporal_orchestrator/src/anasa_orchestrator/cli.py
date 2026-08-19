@@ -13,6 +13,8 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ANASA Temporal control plane")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    sub.add_parser("health")
+
     start = sub.add_parser("start")
     start.add_argument("tickets", help="63,65 or ANA-63 ANA-65")
     start.add_argument("--prompt", default="")
@@ -79,7 +81,9 @@ def _sha_map(values: list[str]) -> dict[str, str]:
 async def _run(args: argparse.Namespace) -> None:
     client = await connect_client()
     service = OrchestratorService(client)
-    if args.command == "start":
+    if args.command == "health":
+        result = await service.health()
+    elif args.command == "start":
         result = await service.start_tickets(
             args.tickets,
             user_instruction=args.prompt,

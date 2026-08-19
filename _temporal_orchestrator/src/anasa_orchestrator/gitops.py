@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from .command import CommandError, run_command
-from .config import RepositoryConfig, Settings
+from .config import PROJECTS_ROOT, RepositoryConfig, Settings
 from .models import (
     BackendBatchInput,
     BackendBatchItem,
@@ -679,7 +679,7 @@ class GitHubGateway:
             import os
 
             checkout = Path(
-                os.getenv("ANASA_ORDER_FE_REPO", "/Users/cigro/Desktop/fe-anasa-ord")
+                os.getenv("ANASA_ORDER_FE_REPO", str(PROJECTS_ROOT / "fe-anasa-ord"))
             ).expanduser()
             return RepositoryConfig(
                 name=name,

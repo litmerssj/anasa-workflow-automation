@@ -6,6 +6,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = PACKAGE_ROOT.parent
+PROJECTS_ROOT = REPOSITORY_ROOT.parent
 
 
 def load_local_environment() -> None:
@@ -45,18 +46,18 @@ class Settings:
 def settings() -> Settings:
     load_local_environment()
     workspace_root = Path(
-        os.getenv("ANASA_WORKSPACE_ROOT", "/Users/cigro/Desktop/.anasa-worktrees")
+        os.getenv("ANASA_WORKSPACE_ROOT", str(PROJECTS_ROOT / ".anasa-worktrees"))
     ).expanduser()
     repositories = (
         RepositoryConfig(
             name="be_anasa",
-            checkout=Path(os.getenv("ANASA_BE_REPO", "/Users/cigro/Desktop/be_anasa")).expanduser(),
+            checkout=Path(os.getenv("ANASA_BE_REPO", str(PROJECTS_ROOT / "be_anasa"))).expanduser(),
             base_ref=os.getenv("ANASA_BE_BASE_REF", "origin/develop"),
             base_branch=os.getenv("ANASA_BE_BASE_BRANCH", "develop"),
         ),
         RepositoryConfig(
             name="fe_anasa",
-            checkout=Path(os.getenv("ANASA_FE_REPO", "/Users/cigro/Desktop/fe_anasa")).expanduser(),
+            checkout=Path(os.getenv("ANASA_FE_REPO", str(PROJECTS_ROOT / "fe_anasa"))).expanduser(),
             base_ref=os.getenv("ANASA_FE_BASE_REF", "origin/main"),
             base_branch=os.getenv("ANASA_FE_BASE_BRANCH", "main"),
         ),

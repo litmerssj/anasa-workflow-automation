@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORCHESTRATOR_ROOT="$PROJECT_ROOT/_temporal_orchestrator"
+MARKETPLACE_NAME="anasa-workflow-automation"
+PLUGIN_ID="anasa-control-plane@$MARKETPLACE_NAME"
+LAUNCHD_LABEL="com.litmers.anasa-temporal-v3"
+LAUNCHD_PATH="$HOME/Library/LaunchAgents/$LAUNCHD_LABEL.plist"
+LOCAL_BIN="$HOME/.local/bin"
+
+fail() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "'$1' is required."
+}
+
+find_python() {
+  local candidate
+  for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+    if ! command -v "$candidate" >/dev/null 2>&1; then
+      continue
+    fi
+    if "$candidate" -c 'import sys; raise SystemExit(sys.version_info < (3, 10))'; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  fail "This opt-in installer currently supports macOS only."
+fi
+
+require_command git
+require_command gh
+require_command codex
+
+PYTHON_BIN="$(find_python)" || fail "Python 3.10 or newer is required."
+
+if ! command -v temporal >/dev/null 2>&1; then
+  require_command brew
+  printf 'Installing Temporal CLI...\n'
+  brew install temporal
+fi
+
+if ! gh auth status >/dev/null 2>&1; then
+  fail "GitHub CLI is not signed in. Run 'gh auth login -h github.com' and retry."
+fi
+
+printf 'Installing the local ANASA runtime...\n'
+"$PYTHON_BIN" -m venv "$ORCHESTRATOR_ROOT/.venv"
+"$ORCHESTRATOR_ROOT/.venv/bin/python" -m pip install --disable-pip-version-check -e "$ORCHESTRATOR_ROOT"
+
+PROJECTS_ROOT="$(dirname "$PROJECT_ROOT")"
+WORKSPACE_ROOT="${ANASA_WORKSPACE_ROOT:-$PROJECTS_ROOT/.anasa-worktrees}"
+BE_REPO="${ANASA_BE_REPO:-$PROJECTS_ROOT/be_anasa}"
+FE_REPO="${ANASA_FE_REPO:-$PROJECTS_ROOT/fe_anasa}"
+ORDER_FE_REPO="${ANASA_ORDER_FE_REPO:-$PROJECTS_ROOT/fe-anasa-ord}"
+ENV_PATH="$ORCHESTRATOR_ROOT/.env"
+
+if [[ ! -f "$ENV_PATH" ]]; then
+  "$PYTHON_BIN" - "$ENV_PATH" "$WORKSPACE_ROOT" "$BE_REPO" "$FE_REPO" "$ORDER_FE_REPO" <<'PY'
+from pathlib import Path
+import sys
+
+target, workspace, backend, frontend, order_frontend = map(Path, sys.argv[1:])
+target.write_text(
+    "\n".join(
+        (
+            f"ANASA_WORKSPACE_ROOT={workspace}",
+            f"ANASA_BE_REPO={backend}",
+            f"ANASA_FE_REPO={frontend}",
+            f"ANASA_ORDER_FE_REPO={order_frontend}",
+            "ANASA_GITHUB_OWNER=litmers-dev",
+            "ANASA_BACKEND_DEPLOY_WORKFLOW=deploy-staging.yml",
+            "ANASA_PREVIEW_ONLY=true",
+            "ANASA_RELEASE_TICKETS=",
+            "",
+        )
+    ),
+    encoding="utf-8",
+)
+PY
+fi
+
+for repository in "$BE_REPO" "$FE_REPO" "$ORDER_FE_REPO"; do
+  if [[ ! -d "$repository/.git" ]]; then
+    printf 'WARNING: repository not found at %s; integration for it will stay unavailable.\n' "$repository"
+  fi
+done
+
+mkdir -p "$LOCAL_BIN" "$HOME/Library/LaunchAgents" "$ORCHESTRATOR_ROOT/.temporal"
+ln -sfn "$ORCHESTRATOR_ROOT/.venv/bin/anasa-mcp" "$LOCAL_BIN/anasa-mcp"
+ln -sfn "$ORCHESTRATOR_ROOT/.venv/bin/anasa-local" "$LOCAL_BIN/anasa-local"
+ln -sfn "$ORCHESTRATOR_ROOT/.venv/bin/anasa-orchestrator" "$LOCAL_BIN/anasa-orchestrator"
+
+"$PYTHON_BIN" - "$LAUNCHD_PATH" "$LAUNCHD_LABEL" "$ORCHESTRATOR_ROOT" "$HOME" <<'PY'
+from pathlib import Path
+import plistlib
+import sys
+
+target = Path(sys.argv[1])
+label = sys.argv[2]
+orchestrator = Path(sys.argv[3])
+home = Path(sys.argv[4])
+path = ":".join(
+    (
+        str(home / ".local" / "bin"),
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+    )
+)
+payload = {
+    "Label": label,
+    "ProgramArguments": [str(orchestrator / ".venv" / "bin" / "anasa-local")],
+    "WorkingDirectory": str(orchestrator),
+    "RunAtLoad": True,
+    "KeepAlive": True,
+    "ThrottleInterval": 5,
+    "EnvironmentVariables": {"HOME": str(home), "PATH": path},
+    "StandardOutPath": str(orchestrator / ".temporal" / "anasa-local.stdout.log"),
+    "StandardErrorPath": str(orchestrator / ".temporal" / "anasa-local.stderr.log"),
+}
+with target.open("wb") as handle:
+    plistlib.dump(payload, handle, sort_keys=False)
+PY
+
+USER_DOMAIN="gui/$(id -u)"
+launchctl bootout "$USER_DOMAIN" "$LAUNCHD_PATH" >/dev/null 2>&1 || true
+launchctl bootstrap "$USER_DOMAIN" "$LAUNCHD_PATH"
+launchctl enable "$USER_DOMAIN/$LAUNCHD_LABEL"
+launchctl kickstart -k "$USER_DOMAIN/$LAUNCHD_LABEL"
+
+printf 'Waiting for the Temporal worker...\n'
+healthy=false
+for _ in $(seq 1 40); do
+  if "$ORCHESTRATOR_ROOT/.venv/bin/anasa-orchestrator" health >/dev/null 2>&1; then
+    healthy=true
+    break
+  fi
+  sleep 0.5
+done
+if [[ "$healthy" != true ]]; then
+  fail "The worker did not become healthy. Check $ORCHESTRATOR_ROOT/.temporal/anasa-local.stderr.log"
+fi
+
+printf 'Installing the Codex marketplace and plugin...\n'
+codex plugin marketplace add "$PROJECT_ROOT" --json >/dev/null
+codex plugin add "$PLUGIN_ID" --json >/dev/null
+
+printf '\nANASA Temporal control plane is ready.\n'
+printf '1. Restart the ChatGPT desktop app.\n'
+printf '2. Open a new Codex task and ask: "ANASA Temporal 상태 확인"\n'
+printf '3. Temporal diagnostics: http://localhost:8233\n'

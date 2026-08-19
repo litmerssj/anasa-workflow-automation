@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from anasa_orchestrator.config import RepositoryConfig, Settings
+from anasa_orchestrator.config import PROJECTS_ROOT, RepositoryConfig, Settings
 from anasa_orchestrator.gitops import (
     GitHubGateway,
     WorktreeManager,
@@ -44,6 +44,24 @@ def test_preview_hold_requires_named_ticket_scope() -> None:
     gateway._require_release_scope(["ANA-65"])
     with pytest.raises(RuntimeError, match="ANA-76"):
         gateway._require_release_scope(["ANA-65", "ANA-76"])
+
+
+def test_order_frontend_default_is_relative_to_the_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ANASA_ORDER_FE_REPO", raising=False)
+    gateway = GitHubGateway(
+        Settings(
+            workspace_root=Path("/tmp/workspaces"),
+            repositories=(),
+            github_owner="litmers-dev",
+            backend_deploy_workflow="deploy-staging.yml",
+            preview_only=True,
+            release_tickets=frozenset(),
+        )
+    )
+
+    assert gateway._repository_config("fe_anasa_ord").checkout == PROJECTS_ROOT / "fe-anasa-ord"
 
 
 def git(*args: str, cwd: Path) -> None:

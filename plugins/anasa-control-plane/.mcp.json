@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "anasa-temporal": {
-      "command": "/Users/cigro/Desktop/anasa-workflow-automation/_temporal_orchestrator/.venv/bin/anasa-mcp",
+      "command": "anasa-mcp",
       "args": [],
       "env": {
         "TEMPORAL_ADDRESS": "localhost:7233",
