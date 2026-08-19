@@ -4,7 +4,10 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from anasa_orchestrator.models import (
+    BackendBatchCompletion,
+    IntegrationCandidate,
     VisibleDirectionApproval,
+    VisibleReopenRequest,
     VisibleStateUpdate,
     VisibleTicketInput,
     WorkflowInstruction,
@@ -22,9 +25,7 @@ async def test_visible_ticket_tracks_app_task_reports_without_running_agent() ->
         ):
             handle = await env.client.start_workflow(
                 VisibleTicketWorkflow.run,
-                VisibleTicketInput(
-                    "ANA-348", "thread-348", "/tmp/ana-348", "ANALYZE"
-                ),
+                VisibleTicketInput("ANA-348", "thread-348", "/tmp/ana-348", "ANALYZE"),
                 id="visible-348",
                 task_queue="visible-queue",
             )
@@ -69,12 +70,84 @@ async def test_visible_ticket_tracks_app_task_reports_without_running_agent() ->
                     completed=True,
                 ),
             )
-            result = await handle.result()
+            completed = await handle.query(VisibleTicketWorkflow.get_status)
+            assert completed.completed is True
 
-    assert result.completed is True
-    assert result.transitions == [
+            reopened = await handle.execute_update(
+                VisibleTicketWorkflow.reopen,
+                VisibleReopenRequest("ANA-348", "ANALYZE", "QA returned"),
+            )
+            assert reopened.completed is False
+            assert reopened.attempt == 2
+
+            ready = await handle.execute_update(
+                VisibleTicketWorkflow.publish_integration_candidate,
+                IntegrationCandidate(
+                    ticket_id="ANA-348",
+                    repository="be_anasa",
+                    pr_url="https://github.test/pr/348",
+                    head_sha="head-348",
+                    branch_name="codex/ana-348",
+                    base_branch="develop",
+                    approved_by="tester",
+                ),
+            )
+            assert ready.current_state == "READY_BE_INTEGRATION"
+            await handle.signal(
+                VisibleTicketWorkflow.integration_completed,
+                BackendBatchCompletion("ANA-348", "batch-348", "merge-348", "https://deploy"),
+            )
+            deployed = await handle.query(VisibleTicketWorkflow.get_status)
+            assert deployed.current_state == "POST_DEPLOY_QA"
+            assert deployed.deployed_sha == "merge-348"
+            await handle.cancel()
+
+    assert deployed.transitions == [
         "ANALYZE",
         "WAIT_DIRECTION_APPROVAL",
         "IMPLEMENT",
         "COMPLETE",
+        "ANALYZE",
+        "READY_BE_INTEGRATION",
+        "POST_DEPLOY_QA",
     ]
+
+
+@pytest.mark.asyncio
+async def test_visible_sync_is_patch_semantic() -> None:
+    async with await WorkflowEnvironment.start_time_skipping() as env:
+        async with Worker(
+            env.client,
+            task_queue="visible-patch-queue",
+            workflows=[VisibleTicketWorkflow],
+        ):
+            handle = await env.client.start_workflow(
+                VisibleTicketWorkflow.run,
+                VisibleTicketInput("ANA-24", "thread-24", "/tmp/ana-24", "ANALYZE"),
+                id="visible-24",
+                task_queue="visible-patch-queue",
+            )
+            await handle.execute_update(
+                VisibleTicketWorkflow.sync_state,
+                VisibleStateUpdate(
+                    ticket_id="ANA-24",
+                    state="WAIT_DIRECTION_APPROVAL",
+                    report_markdown="full report",
+                    scope_hash="scope-24",
+                    pr_urls=["https://github.test/pr/24"],
+                    exact_shas={"fe_anasa": "head-24"},
+                ),
+            )
+            snapshot = await handle.execute_update(
+                VisibleTicketWorkflow.sync_state,
+                VisibleStateUpdate(
+                    ticket_id="ANA-24",
+                    state="IMPLEMENT",
+                    summary="started",
+                ),
+            )
+            assert snapshot.report_markdown == "full report"
+            assert snapshot.scope_hash == "scope-24"
+            assert snapshot.pr_urls == ["https://github.test/pr/24"]
+            assert snapshot.exact_shas == {"fe_anasa": "head-24"}
+            await handle.cancel()

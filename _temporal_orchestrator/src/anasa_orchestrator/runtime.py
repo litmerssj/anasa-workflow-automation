@@ -6,7 +6,8 @@ from temporalio.client import Client
 
 DEFAULT_ADDRESS = "localhost:7233"
 DEFAULT_NAMESPACE = "default"
-DEFAULT_TASK_QUEUE = "anasa-ticket-workers-v2"
+DEFAULT_TASK_QUEUE = "anasa-ticket-workers-v3"
+VISIBLE_WORKFLOW_PREFIX = "anasa-session-v3-"
 
 
 async def connect_client() -> Client:
@@ -25,4 +26,4 @@ def workflow_id(ticket_id: str) -> str:
 
 
 def visible_workflow_id(ticket_id: str) -> str:
-    return f"anasa-visible-{ticket_id}"
+    return f"{VISIBLE_WORKFLOW_PREFIX}{ticket_id}"

@@ -16,11 +16,12 @@ with workflow.unsafe.imports_passed_through():
         RetryRequest,
     )
     from .visible_workflow import VisibleTicketWorkflow
-    from .workflow import TicketWorkflow
 
 
 @workflow.defn
-class BackendBatchWorkflow:
+class FrontendBatchWorkflow:
+    """One integration PR and one production release for visible FE ticket sessions."""
+
     def __init__(self) -> None:
         self._snapshot = BackendBatchSnapshot()
         self._retry_requested = False
@@ -36,13 +37,10 @@ class BackendBatchWorkflow:
         while True:
             try:
                 result = await workflow.execute_activity(
-                    "execute_backend_batch",
+                    "execute_frontend_batch",
                     input,
                     result_type=BackendBatchResult,
-                    start_to_close_timeout=timedelta(minutes=30),
-                    # Merge/deploy is externally mutating. Retrying the whole activity
-                    # can recreate PRs and repeat deterministic database failures. An
-                    # operator may retry the frozen manifest explicitly instead.
+                    start_to_close_timeout=timedelta(minutes=20),
                     retry_policy=RetryPolicy(maximum_attempts=1),
                 )
                 break
@@ -58,14 +56,6 @@ class BackendBatchWorkflow:
         self._snapshot.deployment_url = result.deployment_url
         self._snapshot.merged_shas = dict(result.merged_shas)
         self._snapshot.phase_durations = dict(result.phase_durations)
-        self._snapshot.report_markdown = (
-            f"백엔드 배치: {input.batch_id}\n"
-            f"포함 티켓: {', '.join(self._snapshot.tickets)}\n"
-            f"merge SHA: {result.merged_shas}\n"
-            f"deployed SHA: {result.deployed_sha}\n"
-            f"deployment: {result.deployment_url}\n"
-            f"phase durations: {result.phase_durations}"
-        )
         for item in input.items:
             completion = BackendBatchCompletion(
                 ticket_id=item.ticket_id,
@@ -73,16 +63,10 @@ class BackendBatchWorkflow:
                 deployed_sha=result.deployed_sha,
                 deployment_url=result.deployment_url,
             )
-            if item.workflow_kind == "visible":
-                handle = workflow.get_external_workflow_handle_for(
-                    VisibleTicketWorkflow.run, item.workflow_id
-                )
-                await handle.signal(VisibleTicketWorkflow.integration_completed, completion)
-            else:
-                handle = workflow.get_external_workflow_handle_for(
-                    TicketWorkflow.run, item.workflow_id
-                )
-                await handle.signal(TicketWorkflow.backend_batch_completed, completion)
+            handle = workflow.get_external_workflow_handle_for(
+                VisibleTicketWorkflow.run, item.workflow_id
+            )
+            await handle.signal(VisibleTicketWorkflow.integration_completed, completion)
         self._transition(BatchPhase.COMPLETE)
         return self._copy_snapshot()
 
@@ -98,17 +82,12 @@ class BackendBatchWorkflow:
     @retry.validator
     def validate_retry(self, request: RetryRequest) -> None:
         if self._snapshot.current_state != BatchPhase.BLOCKED.value:
-            raise ValueError("backend batch is not blocked")
+            raise ValueError("frontend batch is not blocked")
         if not request.requested_by.strip():
             raise ValueError("requested_by must not be blank")
 
     def _block(self, error: Exception) -> None:
-        failures: list[str] = []
-        current: BaseException | None = error
-        while current is not None:
-            failures.append(f"{type(current).__name__}: {current}")
-            current = current.__cause__ or current.__context__
-        self._snapshot.last_failure = " <- ".join(failures)
+        self._snapshot.last_failure = f"{type(error).__name__}: {error}"
         self._transition(BatchPhase.BLOCKED)
 
     def _transition(self, state: BatchPhase) -> None:

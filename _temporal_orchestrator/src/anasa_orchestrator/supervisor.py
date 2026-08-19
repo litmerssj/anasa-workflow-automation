@@ -21,24 +21,24 @@ def _port_open(port: int) -> bool:
 def main() -> None:
     processes: list[subprocess.Popen] = []
     temporal_owned = False
+    temporal_process: subprocess.Popen | None = None
     if not _port_open(7233):
         temporal = shutil.which("temporal")
         if not temporal:
             raise SystemExit("Temporal CLI is missing. Install it with: brew install temporal")
         data_dir = PACKAGE_ROOT / ".temporal"
         data_dir.mkdir(parents=True, exist_ok=True)
-        processes.append(
-            subprocess.Popen(
-                [
-                    temporal,
-                    "server",
-                    "start-dev",
-                    "--db-filename",
-                    str(data_dir / "temporal.db"),
-                ],
-                cwd=PACKAGE_ROOT,
-            )
+        temporal_process = subprocess.Popen(
+            [
+                temporal,
+                "server",
+                "start-dev",
+                "--db-filename",
+                str(data_dir / "temporal.db"),
+            ],
+            cwd=PACKAGE_ROOT,
         )
+        processes.append(temporal_process)
         temporal_owned = True
         for _ in range(100):
             if _port_open(7233):
@@ -47,12 +47,16 @@ def main() -> None:
         else:
             raise SystemExit("Temporal server did not start")
 
-    processes.append(
-        subprocess.Popen(
-            [sys.executable, "-m", "anasa_orchestrator.worker"],
+    worker_command = [sys.executable, "-m", "anasa_orchestrator.worker"]
+
+    def start_worker() -> subprocess.Popen:
+        return subprocess.Popen(
+            worker_command,
             cwd=PACKAGE_ROOT,
         )
-    )
+
+    worker_process = start_worker()
+    processes.append(worker_process)
 
     print("ANASA worker is ready for the Codex app plugin.")
     print("Temporal UI: http://localhost:8233")
@@ -73,9 +77,19 @@ def main() -> None:
     signal.signal(signal.SIGTERM, stop)
     try:
         while not stopping:
-            for process in processes:
-                if process.poll() is not None:
-                    raise RuntimeError(f"managed process exited with code {process.returncode}")
+            if temporal_process is not None and temporal_process.poll() is not None:
+                raise RuntimeError(
+                    f"managed Temporal server exited with code {temporal_process.returncode}"
+                )
+            if worker_process.poll() is not None:
+                print(
+                    f"ANASA worker exited with code {worker_process.returncode}; restarting in 1s.",
+                    flush=True,
+                )
+                processes.remove(worker_process)
+                time.sleep(1)
+                worker_process = start_worker()
+                processes.append(worker_process)
             time.sleep(0.5)
     except KeyboardInterrupt:
         stop()

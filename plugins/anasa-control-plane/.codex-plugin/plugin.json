@@ -1,23 +1,23 @@
 {
   "name": "anasa-control-plane",
-  "version": "0.1.0+codex.20260818041605",
-  "description": "Manage durable ANASA ticket workflows from the Codex app through Temporal.",
+  "version": "0.1.0+codex.20260819005528",
+  "description": "Register visible ANASA ticket sessions and coordinate fast FE/BE integration batches through Temporal.",
   "author": {
     "name": "litmerssj"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Anasa Control Plane",
-    "shortDescription": "Manage ANASA tickets through Temporal.",
-    "longDescription": "Start and inspect ANASA ticket workflows, add follow-up prompts, review reports, and route explicit approval gates through the local Temporal control plane.",
+    "shortDescription": "Coordinate ANASA sessions and integration merges.",
+    "longDescription": "Bulk-register app-visible ANASA ticket sessions, collect ticket-approved FE/BE candidates, and run one exact-manifest integration merge and deployment through Temporal.",
     "developerName": "litmerssj",
     "category": "Productivity",
     "capabilities": [
-      "ANASA ticket orchestration",
-      "Temporal workflow control",
-      "Exact-SHA approval routing"
+      "ANASA session batch registration",
+      "Backend integration merge and deployment",
+      "Frontend integration merge and release"
     ],
-    "defaultPrompt": "Show ANASA tickets that need my attention. Do not infer approvals."
+    "defaultPrompt": "Show FE and BE integration candidates. Do not infer approvals."
   },
   "mcpServers": "./.mcp.json"
 }

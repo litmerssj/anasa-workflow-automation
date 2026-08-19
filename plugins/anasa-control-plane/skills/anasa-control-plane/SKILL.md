@@ -1,39 +1,68 @@
 ---
 name: anasa-control-plane
-description: Use the local Temporal control plane to start, inspect, prompt, approve, batch, retry, and complete ANASA ticket workflows from the Codex app. Use when 홍석주 mentions ANA ticket numbers, asks for status or reports, adds a follow-up instruction, answers a customer question, or explicitly approves a development direction, exact PR SHA, backend batch, frontend production release, or qaEvidence.
+description: Use Temporal as the lightweight ANASA ticket-session registry and as the central FE/BE integration merge coordinator. Use it to register several app-created ticket sessions at once, publish exact ticket-session-approved integration candidates, list ready FE/BE candidates, run one approved integration merge/deployment, inspect batch failures, and reopen the same session after QA return.
 ---
 
 # ANASA Control Plane
 
-Use the `anasa-temporal` MCP tools as the authoritative workflow interface.
+Use the `anasa-temporal` MCP tools for durable session registration and integration batches.
 
-## Visible worker topology
+## Ownership boundary
 
-- Actual analysis and implementation run in a user-visible Codex app project task, never in a headless Temporal activity.
-- When a new ticket is requested, create or adopt one Codex project worktree task, then call `anasa_register_visible_ticket` with its thread ID and worktree path.
-- The visible task calls `anasa_sync_visible_ticket` after analysis, PR preparation, deployment evidence, blockers, and completion.
-- Direction approval for a visible task must call `anasa_approve_visible_direction` with the exact displayed canonical scope hash.
-- Temporal owns durable state and approval history; the visible Codex task owns investigation, implementation, tests, and user-visible progress.
-- Do not call the legacy `anasa_start_tickets` headless tool for new work.
+- Each ANA ticket has its own visible Codex app task and worktree.
+- 홍석주 gives ticket-specific requirements, feedback, Dev Q answers, direction approval, PR approval,
+  QA feedback, and completion instructions directly in that ticket task.
+- The central manager does not relay ordinary ticket instructions or poll every ticket for progress.
+- The central manager owns only:
+  1. creating/adopting several ticket tasks in one request;
+  2. one compatible backend integration merge/deployment;
+  3. one compatible frontend integration merge/main release.
 
-## Read and report
+## Starting several ticket sessions
 
-- Normalize bare numbers to `ANA-<number>`.
-- For status requests, call `anasa_list_tickets` or `anasa_get_ticket` and report the stored analysis, Dev Q, implementation report, PR artifacts, failure, and exact pending gate.
-- Use `anasa_add_instruction` when the user adds a prompt to an in-progress pre-release workflow. Explain that it resumes the same Codex thread and can invalidate scope hash or PR SHA.
-- Never post investigation or Dev Q text to Linear. Those reports remain in the Codex app.
+1. The central Codex task creates or adopts one app-visible worktree task per ticket, up to eight.
+2. Do not create a duplicate when a task for the same ticket already exists.
+3. After the app returns the real thread IDs and worktree paths, call
+   `anasa_register_visible_tickets` once for the whole batch.
+4. Ticket-specific conversation continues in each created task, not in the central manager.
 
-## Approval boundaries
+## Ticket-session publishing
 
-- Call `anasa_approve_direction` only after the user explicitly approves the displayed scope hash.
-- Call `anasa_approve_prs` only with the exact repository-to-head-SHA map the user approved.
-- Call `anasa_start_backend_batch` only after explicit approval of the named tickets, batch ID, and exact confirmation `DEPLOY BACKEND <batch_id>`.
-- Call `anasa_authorize_frontend_production` only after explicit production approval and exact confirmation `PRODUCTION <ticket_id>`.
-- Call `anasa_submit_qa_evidence` only with actual PR/commit, smoke, before, and after evidence.
-- Do not infer deployment-hold release from a PR approval, preview, elapsed time, or generic completion request.
+- A ticket task calls `anasa_sync_visible_ticket` at meaningful gates. Sync is patch-semantic:
+  omitted report, scope, PR, and SHA fields preserve their current values.
+- After 홍석주 approves the ticket's exact PR head in that ticket task, it calls
+  `anasa_publish_integration_candidate` with repository, PR URL, head SHA, branch/base, impact,
+  and approver.
+- Backend candidates enter `READY_BE_INTEGRATION`; frontend candidates enter
+  `READY_FE_INTEGRATION`.
+- A QA return uses `anasa_reopen_visible_ticket` so the same Codex task and workflow attempt are
+  reused.
 
-## Failure handling
+## Central integration
 
-- Read `last_failure` and `resume_state` before retrying.
-- Use `anasa_retry` only when retrying the same approved artifacts and behavior is safe.
-- If a follow-up instruction changes behavior, scope, repository impact, API/SP/DB/migration strategy, visible-column contract, or risk, send it through `anasa_add_instruction` and require fresh downstream approvals.
+- Use `anasa_list_integration_candidates(repository)` instead of polling every ticket.
+- Freeze the selected ticket IDs and exact heads before integration.
+- Backend confirmation must equal `DEPLOY BACKEND <batch-id>` and calls
+  `anasa_start_visible_backend_batch`.
+- Frontend confirmation must equal `MERGE FRONTEND <batch-id>` and calls
+  `anasa_start_visible_frontend_batch`.
+- Never mix `fe_anasa` and `fe_anasa_ord` in one frontend batch.
+- Integration activities use one integration PR and one target-branch merge. They do not re-run the
+  individual ticket development lifecycle.
+
+## Failure and speed rules
+
+- Call `anasa_health` before starting a batch; both workflow and activity pollers must be present.
+- Whole merge/deploy activities do not auto-retry. Retry only a frozen unchanged batch with the
+  explicit retry tool after reading its failure.
+- Deployment database commands retry only transient connectivity failures. Deterministic migration,
+  contract, or data errors fail after the first attempt.
+- Batch reports include phase durations for candidate validation, integration assembly, merge, and
+  deployment wait.
+- Do not infer exact-SHA, backend deployment, frontend main, fixture, qaEvidence, or data-mutation
+  approval.
+
+## Compatibility
+
+Legacy ticket workflow tools remain available for old workflows, but new work uses visible Codex
+tasks and the tools described above. Do not use deprecated headless `anasa_start_tickets`.

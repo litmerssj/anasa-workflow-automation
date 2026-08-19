@@ -5,7 +5,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from .models import VisibleStateUpdate
+from .models import IntegrationCandidate, VisibleStateUpdate, VisibleTicketInput
 from .runtime import connect_client
 from .service import OrchestratorService
 
@@ -25,15 +25,33 @@ async def _service() -> OrchestratorService:
 
 
 @mcp.tool()
+async def anasa_health() -> dict[str, Any]:
+    """Check Temporal connectivity and active workflow/activity pollers."""
+    return await (await _service()).health()
+
+
+@mcp.tool()
 async def anasa_list_tickets() -> list[dict[str, Any]]:
     """List every Temporal-managed ANASA ticket with reports and attention state."""
     return await (await _service()).list_tickets()
 
 
 @mcp.tool()
-async def anasa_list_visible_tickets() -> list[dict[str, Any]]:
+async def anasa_list_visible_tickets(states: list[str] | None = None) -> list[dict[str, Any]]:
     """List Temporal trackers for visible Codex app ticket tasks."""
-    return await (await _service()).list_visible_tickets()
+    return await (await _service()).list_visible_tickets(states=set(states or []))
+
+
+@mcp.tool()
+async def anasa_get_ticket_summary(ticket_id: str) -> dict[str, Any]:
+    """Read a ticket from the visible-session tracker, falling back to legacy workflow."""
+    return await (await _service()).get_ticket_summary(ticket_id)
+
+
+@mcp.tool()
+async def anasa_list_integration_candidates(repository: str) -> list[dict[str, Any]]:
+    """List ticket-session-approved candidates ready for one FE or BE integration merge."""
+    return await (await _service()).list_integration_candidates(repository)
 
 
 @mcp.tool()
@@ -52,6 +70,24 @@ async def anasa_register_visible_ticket(
 
 
 @mcp.tool()
+async def anasa_register_visible_tickets(
+    tickets: list[dict[str, str]],
+) -> list[dict[str, Any]]:
+    """Register up to eight app-created Codex ticket sessions in one Temporal call."""
+    inputs = [
+        VisibleTicketInput(
+            ticket_id=item["ticket_id"],
+            codex_thread_id=item["codex_thread_id"],
+            worktree_path=item["worktree_path"],
+            initial_state=item.get("initial_state", "ANALYZE"),
+        )
+        for item in tickets
+    ]
+    snapshots = await (await _service()).register_visible_tickets(inputs)
+    return [asdict(snapshot) for snapshot in snapshots]
+
+
+@mcp.tool()
 async def anasa_sync_visible_ticket(
     ticket_id: str,
     state: str,
@@ -60,7 +96,9 @@ async def anasa_sync_visible_ticket(
     scope_hash: str | None = None,
     pr_urls: list[str] | None = None,
     exact_shas: dict[str, str] | None = None,
-    completed: bool = False,
+    last_failure: str | None = None,
+    resume_state: str | None = None,
+    completed: bool | None = None,
 ) -> dict[str, Any]:
     """Persist a visible task's report and current gate in Temporal."""
     return asdict(
@@ -71,12 +109,50 @@ async def anasa_sync_visible_ticket(
                 summary=summary,
                 report_markdown=report_markdown,
                 scope_hash=scope_hash,
-                pr_urls=pr_urls or [],
-                exact_shas=exact_shas or {},
+                pr_urls=pr_urls,
+                exact_shas=exact_shas,
+                last_failure=last_failure,
+                resume_state=resume_state,
                 completed=completed,
             )
         )
     )
+
+
+@mcp.tool()
+async def anasa_publish_integration_candidate(
+    ticket_id: str,
+    repository: str,
+    pr_url: str,
+    head_sha: str,
+    branch_name: str,
+    base_branch: str,
+    approved_by: str,
+    base_sha: str = "",
+    impact_summary: str = "",
+) -> dict[str, Any]:
+    """Publish an exact ticket-session-approved PR to the central FE/BE ready queue."""
+    return asdict(
+        await (await _service()).publish_integration_candidate(
+            IntegrationCandidate(
+                ticket_id=ticket_id,
+                repository=repository,
+                pr_url=pr_url,
+                head_sha=head_sha,
+                branch_name=branch_name,
+                base_branch=base_branch,
+                base_sha=base_sha,
+                approved_by=approved_by,
+                impact_summary=impact_summary,
+            )
+        )
+    )
+
+
+@mcp.tool()
+async def anasa_reopen_visible_ticket(ticket_id: str, state: str, reason: str) -> dict[str, Any]:
+    """Reopen the same durable ticket session after QA return or follow-up work."""
+    return asdict(await (await _service()).reopen_visible_ticket(ticket_id, state, reason))
 
 
 @mcp.tool()
@@ -85,9 +161,7 @@ async def anasa_approve_visible_direction(
 ) -> dict[str, Any]:
     """Approve the exact canonical scope hash for a visible Codex ticket task."""
     return asdict(
-        await (await _service()).approve_visible_direction(
-            ticket_id, scope_hash, approved_by
-        )
+        await (await _service()).approve_visible_direction(ticket_id, scope_hash, approved_by)
     )
 
 
@@ -160,6 +234,34 @@ async def anasa_start_backend_batch(
     if confirmation != expected:
         raise ValueError(f"confirmation must equal: {expected}")
     return await (await _service()).start_backend_batch(ticket_ids, batch_id, approved_by)
+
+
+@mcp.tool()
+async def anasa_start_visible_backend_batch(
+    ticket_ids: list[str],
+    batch_id: str,
+    confirmation: str,
+    approved_by: str = "hong-seokju",
+) -> dict[str, str]:
+    """Create one backend integration merge/deploy from visible ticket ready candidates."""
+    expected = f"DEPLOY BACKEND {batch_id}"
+    if confirmation != expected:
+        raise ValueError(f"confirmation must equal: {expected}")
+    return await (await _service()).start_visible_backend_batch(ticket_ids, batch_id, approved_by)
+
+
+@mcp.tool()
+async def anasa_start_visible_frontend_batch(
+    ticket_ids: list[str],
+    batch_id: str,
+    confirmation: str,
+    approved_by: str = "hong-seokju",
+) -> dict[str, str]:
+    """Create one frontend integration PR/main merge from visible ticket candidates."""
+    expected = f"MERGE FRONTEND {batch_id}"
+    if confirmation != expected:
+        raise ValueError(f"confirmation must equal: {expected}")
+    return await (await _service()).start_visible_frontend_batch(ticket_ids, batch_id, approved_by)
 
 
 @mcp.tool()

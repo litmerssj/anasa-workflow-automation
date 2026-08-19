@@ -30,6 +30,11 @@ class BatchPhase(str, Enum):
     BLOCKED = "BLOCKED"
 
 
+class IntegrationKind(str, Enum):
+    BACKEND = "backend"
+    FRONTEND = "frontend"
+
+
 @dataclass
 class TicketWorkflowInput:
     ticket_id: str
@@ -216,6 +221,19 @@ class BackendBatchCompletion:
 
 
 @dataclass
+class IntegrationCandidate:
+    ticket_id: str
+    repository: str
+    pr_url: str
+    head_sha: str
+    branch_name: str
+    base_branch: str
+    base_sha: str = ""
+    approved_by: str = ""
+    impact_summary: str = ""
+
+
+@dataclass
 class ReleaseAuthorization:
     ticket_id: str
     exact_shas: dict[str, str]
@@ -303,6 +321,7 @@ class BackendBatchItem:
     workflow_id: str
     artifacts: list[PrArtifact]
     approved_shas: dict[str, str]
+    workflow_kind: str = "ticket"
 
 
 @dataclass
@@ -318,6 +337,7 @@ class BackendBatchResult:
     deployed_sha: str
     deployment_url: str
     merged_shas: dict[str, str]
+    phase_durations: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -330,6 +350,7 @@ class BackendBatchSnapshot:
     merged_shas: dict[str, str] = field(default_factory=dict)
     report_markdown: str | None = None
     last_failure: str | None = None
+    phase_durations: dict[str, float] = field(default_factory=dict)
     transitions: list[str] = field(default_factory=list)
 
 
@@ -345,12 +366,14 @@ class VisibleTicketInput:
 class VisibleStateUpdate:
     ticket_id: str
     state: str
-    summary: str = ""
-    report_markdown: str = ""
+    summary: str | None = None
+    report_markdown: str | None = None
     scope_hash: str | None = None
-    pr_urls: list[str] = field(default_factory=list)
-    exact_shas: dict[str, str] = field(default_factory=dict)
-    completed: bool = False
+    pr_urls: list[str] | None = None
+    exact_shas: dict[str, str] | None = None
+    last_failure: str | None = None
+    resume_state: str | None = None
+    completed: bool | None = None
 
 
 @dataclass
@@ -358,6 +381,13 @@ class VisibleDirectionApproval:
     ticket_id: str
     scope_hash: str
     approved_by: str
+
+
+@dataclass
+class VisibleReopenRequest:
+    ticket_id: str
+    state: str
+    reason: str
 
 
 @dataclass
@@ -373,6 +403,14 @@ class VisibleTicketSnapshot:
     approved_by: str | None = None
     pr_urls: list[str] = field(default_factory=list)
     exact_shas: dict[str, str] = field(default_factory=dict)
+    integration_candidate: IntegrationCandidate | None = None
+    backend_batch_id: str | None = None
+    deployed_sha: str | None = None
+    deployment_url: str | None = None
+    last_failure: str | None = None
+    resume_state: str | None = None
+    attempt: int = 1
+    updated_at: str = ""
     instruction_history: list[str] = field(default_factory=list)
     completed: bool = False
     transitions: list[str] = field(default_factory=list)

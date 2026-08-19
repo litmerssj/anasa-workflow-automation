@@ -6,6 +6,7 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from anasa_orchestrator.batch_workflow import BackendBatchWorkflow
+from anasa_orchestrator.frontend_batch_workflow import FrontendBatchWorkflow
 from anasa_orchestrator.models import (
     AnalysisResult,
     AnalyzeTicketInput,
@@ -31,9 +32,11 @@ from anasa_orchestrator.models import (
     TicketContext,
     TicketPhase,
     TicketWorkflowInput,
+    VisibleTicketInput,
     WorkflowInstruction,
     WorkspaceResult,
 )
+from anasa_orchestrator.visible_workflow import VisibleTicketWorkflow
 from anasa_orchestrator.workflow import TicketWorkflow
 
 analysis_calls = 0
@@ -152,6 +155,17 @@ async def execute_backend_batch(input: BackendBatchInput) -> BackendBatchResult:
         deployed_sha="deployed-sha",
         deployment_url="https://deploy",
         merged_shas={"ANA-65": "abc2"},
+    )
+
+
+@activity.defn(name="execute_frontend_batch")
+async def execute_frontend_batch(input: BackendBatchInput) -> BackendBatchResult:
+    return BackendBatchResult(
+        batch_id=input.batch_id,
+        deployed_sha="frontend-merge",
+        deployment_url="https://frontend",
+        merged_shas={"ANA-65": "fe-head"},
+        phase_durations={"total": 3.5},
     )
 
 
@@ -348,3 +362,56 @@ async def test_backend_batch_signals_each_ticket_after_deployment() -> None:
 
     assert batch_result.current_state == "COMPLETE"
     assert receiver_result == "deployed-sha"
+
+
+@pytest.mark.asyncio
+async def test_frontend_batch_signals_visible_ticket_session() -> None:
+    async with await WorkflowEnvironment.start_time_skipping() as env:
+        async with Worker(
+            env.client,
+            task_queue="frontend-batch-queue",
+            workflows=[FrontendBatchWorkflow, VisibleTicketWorkflow],
+            activities=[execute_frontend_batch],
+        ):
+            visible = await env.client.start_workflow(
+                VisibleTicketWorkflow.run,
+                VisibleTicketInput("ANA-65", "thread-65", "/tmp/ana-65"),
+                id="visible-65",
+                task_queue="frontend-batch-queue",
+            )
+            batch = await env.client.start_workflow(
+                FrontendBatchWorkflow.run,
+                BackendBatchInput(
+                    "frontend-batch-1",
+                    [
+                        BackendBatchItem(
+                            ticket_id="ANA-65",
+                            workflow_id="visible-65",
+                            artifacts=[
+                                PrArtifact(
+                                    repository="fe_anasa",
+                                    pr_url="https://github.test/pr/65",
+                                    head_sha="fe-head",
+                                    branch_name="codex/ana-65",
+                                    base_branch="main",
+                                    backend_change=False,
+                                    has_changes=True,
+                                )
+                            ],
+                            approved_shas={"fe_anasa": "fe-head"},
+                            workflow_kind="visible",
+                        )
+                    ],
+                    "tester",
+                ),
+                id="frontend-batch-1",
+                task_queue="frontend-batch-queue",
+            )
+            result = await batch.result()
+            snapshot = await visible.query(VisibleTicketWorkflow.get_status)
+            await visible.cancel()
+
+    assert result.current_state == "COMPLETE"
+    assert result.phase_durations == {"total": 3.5}
+    assert snapshot.current_state == "POST_DEPLOY_QA"
+    assert snapshot.deployed_sha == "frontend-merge"

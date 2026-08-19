@@ -6,6 +6,7 @@ from temporalio.worker import Worker
 
 from .activities import TicketActivities
 from .batch_workflow import BackendBatchWorkflow
+from .frontend_batch_workflow import FrontendBatchWorkflow
 from .runtime import connect_client, task_queue
 from .visible_workflow import VisibleTicketWorkflow
 from .workflow import TicketWorkflow
@@ -17,7 +18,12 @@ async def run_worker() -> None:
     worker = Worker(
         client,
         task_queue=task_queue(),
-        workflows=[TicketWorkflow, BackendBatchWorkflow, VisibleTicketWorkflow],
+        workflows=[
+            TicketWorkflow,
+            BackendBatchWorkflow,
+            FrontendBatchWorkflow,
+            VisibleTicketWorkflow,
+        ],
         activities=[
             activities.prepare_workspace,
             activities.fetch_ticket,
@@ -28,6 +34,7 @@ async def run_worker() -> None:
             activities.merge_frontend,
             activities.complete_ticket,
             activities.execute_backend_batch,
+            activities.execute_frontend_batch,
         ],
     )
     await worker.run()

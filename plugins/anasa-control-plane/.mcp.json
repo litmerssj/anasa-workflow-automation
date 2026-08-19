@@ -6,7 +6,7 @@
       "env": {
         "TEMPORAL_ADDRESS": "localhost:7233",
         "TEMPORAL_NAMESPACE": "default",
-        "ANASA_TASK_QUEUE": "anasa-ticket-workers-v2"
+        "ANASA_TASK_QUEUE": "anasa-ticket-workers-v3"
       }
     }
   }

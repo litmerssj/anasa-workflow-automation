@@ -330,6 +330,10 @@ Return only the requested JSON summary when finished.
     async def execute_backend_batch(self, input: BackendBatchInput) -> BackendBatchResult:
         return await self._github.merge_and_deploy_backend(input)
 
+    @activity.defn(name="execute_frontend_batch")
+    async def execute_frontend_batch(self, input: BackendBatchInput) -> BackendBatchResult:
+        return await self._github.merge_and_deploy_frontend(input)
+
 
 def _scope_hash(payload: AnalysisPayload) -> str:
     scope_contract = {

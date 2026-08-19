@@ -1,7 +1,7 @@
 # ANASA Temporal Control Plane
 
-ANASA 티켓의 조사, 사용자 보고, 개발방향 승인, Codex 구현, PR exact-SHA 승인,
-backend 통합 배포, QA 증빙을 durable Temporal Workflow로 관리합니다.
+ANASA 티켓별 작업은 각 visible Codex task가 독립적으로 소유하고, Temporal은 task registry와
+FE/BE 통합 머지를 durable Workflow로 관리합니다.
 
 ```text
 Codex 앱 visible project task ── ANASA MCP Plugin ── Temporal
@@ -47,31 +47,42 @@ gh auth login -h github.com
 Codex 앱의 `anasa-control-plane` 플러그인이 이 worker와 통신합니다. 기존에 수동으로
 실행한 `anasa-worker`는 v1 task queue를 사용하므로 새 v2 worker와 섞이지 않습니다.
 
+## 역할 경계
+
+- 각 티켓 task: 분석, 사용자 피드백, Dev Q, 개발방향, 구현, 테스트, PR exact-SHA 승인,
+  티켓별 QA와 완료
+- 중앙 관리자: 최대 8개 티켓 task 일괄 생성/채택, backend 통합 머지/배포, frontend 통합
+  머지/main release
+- Temporal: visible task registry, FE/BE ready queue, exact candidate manifest, integration failure와
+  단계별 시간 보존
+
+중앙 관리자는 일반 티켓 지시를 중계하거나 모든 티켓을 계속 polling하지 않습니다.
+
 ## Codex 앱에서 하는 일
 
 - `63, 65, 76`처럼 최대 8개 티켓 일괄 시작
 - Linear description, 댓글, 첨부·연관 티켓을 포함한 읽기 전용 분석
-- 다음 형식의 텍스트 보고
-  - 티켓 이해 내용
-  - 현재 동작과 원인
-  - 개발 방향
-  - 변경 영향
-  - 검증 계획
-  - 남은 결정/위험
-- 고객 결정이 필요하면 `[Dev Q]` 텍스트 보고
-- 진행 중 Workflow에 추가 프롬프트 전달
-- scope hash 개발방향 승인
-- 구현·테스트 후 생성된 FE/BE PR exact SHA 승인
-- 승인 backend 티켓을 지정해 한 배치로 merge·staging deploy
-- FE production release 명시 승인
-- 실제 스모크·수정 전·수정 후 증거를 입력한 뒤 최종 Linear qaEvidence와 QA Request
+- app이 만든 실제 thread/worktree를 `anasa_register_visible_tickets`로 한 번에 등록
+- 티켓 task가 승인된 PR을 `anasa_publish_integration_candidate`로 FE/BE ready queue에 게시
+- 중앙에서 ready candidate만 조회해 한 integration PR로 merge/release
+- QA 반려 시 `anasa_reopen_visible_ticket`으로 같은 task와 tracker를 재사용
+- `anasa_health`로 integration 시작 전 worker poller 확인
 
-추가 프롬프트는 같은 `codex_thread_id`를 resume합니다. 개발방향 승인 전이면 재분석하고,
-PR 승인 전이면 재구현·재검증하여 새 head SHA를 만들고 이전 승인을 무효화합니다. Backend
-batch assignment 또는 release가 시작된 뒤에는 같은 Workflow의 범위 변경을 차단합니다.
-실제 agent는 Codex 앱의 `anasa` 프로젝트 worktree task에서 실행됩니다. Task는 분석·구현·
-테스트 과정을 실시간으로 보여주고 `anasa_sync_visible_ticket`으로 보고와 현재 gate를
-Temporal에 기록합니다. Temporal은 agent를 headless로 실행하지 않습니다.
+실제 agent는 Codex 앱의 `anasa` 프로젝트 worktree task에서 실행됩니다. Temporal은 agent를
+headless로 실행하지 않습니다. `anasa_sync_visible_ticket`은 patch semantic이므로 생략한
+report/scope/PR/SHA를 빈 값으로 지우지 않습니다.
+
+## 빠른 통합 배포
+
+- candidate PR 상태 검사를 병렬 실행
+- integration worktree fetch는 repository당 한 번
+- whole merge/deploy activity 자동 재시도 금지; frozen manifest의 명시적 retry만 허용
+- GitHub deployment run 발견 후 `gh run watch --interval 5`로 전환
+- batch 결과에 candidate validation, PR assembly, merge, deploy wait 시간을 기록
+- staging DB/migration은 transient 연결 오류만 재시도하고 deterministic contract/data 오류는
+  첫 실패에서 중단
+- 정상 배포는 Docker layer를 보존하고 disk usage 85% 이상일 때만 오래된 layer를 정리
+- API 시작은 고정 30초 sleep 대신 즉시 5초 health polling
 
 ## Workflow
 
@@ -92,9 +103,8 @@ PREPARE_WORKSPACE
 → COMPLETE
 ```
 
-Activity가 3회 실패하면 Workflow는 종료되지 않고 `BLOCKED`에서 원인과 resume state를
-보존합니다. 동일 범위·artifact 재시도만 허용하며, 행동 변경은 추가 프롬프트와 새 승인을
-거칩니다.
+Integration activity는 외부 merge/deploy를 수행하므로 자동 재시도하지 않습니다. 실패한
+Workflow는 `BLOCKED`에서 manifest와 원인을 보존하며, 동일 artifact의 명시적 retry만 허용합니다.
 
 ## 실제 구현 경계
 
