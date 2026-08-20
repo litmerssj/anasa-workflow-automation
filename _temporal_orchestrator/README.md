@@ -63,11 +63,13 @@ Linear 자격증명이 필요한 기존 자동화는 `_customer_board/.env.local
 ## 역할 경계
 
 - 티켓 task: 분석, 피드백, 개발 방향, 구현, 테스트, exact-PR 승인, 티켓별 QA와 완료
-- 중앙 task: 여러 visible task 일괄 등록, backend 통합 머지/배포, frontend 통합 머지/release
+- one-shot launcher: 명시적으로 요청한 여러 visible task 일괄 등록 후 종료
+- temporary integration task: backend 통합 머지/배포 또는 frontend 통합 머지/release 한 배치 후 종료
 - Temporal: task registry, FE/BE ready queue, exact candidate manifest, batch 실패와 단계별 시간
 
-중앙 task는 일반 티켓 지시를 중계하거나 모든 티켓을 계속 polling하지 않습니다. 각 티켓
-task가 승인된 PR을 integration candidate로 게시하고 중앙 task는 ready queue만 조회합니다.
+상시 중앙 관리자 task는 두지 않습니다. 일반 티켓 지시·피드백·승인은 각 티켓 task에서 직접
+처리합니다. 각 티켓 task가 승인된 PR을 integration candidate로 게시하고, 통합이 필요할 때만
+임시 integration task가 ready queue를 읽습니다. 임시 task는 배치가 끝나면 종료합니다.
 
 ## 안전 기본값
 

@@ -9,22 +9,27 @@ Use the `anasa-temporal` MCP tools for durable session registration and integrat
 
 ## Ownership boundary
 
+- Do not keep a persistent central manager conversation. Normal operation is direct user ↔ ticket
+  task conversation with Temporal as the durable registry.
+
 - Each ANA ticket has its own visible Codex app task and worktree.
 - 홍석주 gives ticket-specific requirements, feedback, Dev Q answers, direction approval, PR approval,
   QA feedback, and completion instructions directly in that ticket task.
-- The central manager does not relay ordinary ticket instructions or poll every ticket for progress.
-- The central manager owns only:
-  1. creating/adopting several ticket tasks in one request;
+- A short-lived launcher/integration task owns only:
+  1. one explicit bulk ticket-session creation/adoption request;
   2. one compatible backend integration merge/deployment;
   3. one compatible frontend integration merge/main release.
+- It must stop after handing off ticket work or after the integration batch reaches a terminal state.
+- It must not continuously poll ticket tasks, relay ordinary instructions, summarize every ticket,
+  or wake completed/idle sessions.
 
 ## Starting several ticket sessions
 
 1. The central Codex task creates or adopts one app-visible worktree task per ticket, up to eight.
 2. Do not create a duplicate when a task for the same ticket already exists.
 3. After the app returns the real thread IDs and worktree paths, call
-   `anasa_register_visible_tickets` once for the whole batch.
-4. Ticket-specific conversation continues in each created task, not in the central manager.
+   `anasa_register_visible_tickets` once for the whole batch, then hand off and stop the launcher.
+4. Ticket-specific conversation continues only in each ticket task.
 
 ## Ticket-session publishing
 
@@ -40,7 +45,8 @@ Use the `anasa-temporal` MCP tools for durable session registration and integrat
 
 ## Central integration
 
-- Use `anasa_list_integration_candidates(repository)` instead of polling every ticket.
+- A temporary integration task uses `anasa_list_integration_candidates(repository)` instead of
+  polling every ticket. It must not become a persistent dashboard.
 - Freeze the selected ticket IDs and exact heads before integration.
 - Backend confirmation must equal `DEPLOY BACKEND <batch-id>` and calls
   `anasa_start_visible_backend_batch`.

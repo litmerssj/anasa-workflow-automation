@@ -1,6 +1,6 @@
 {
   "name": "anasa-control-plane",
-  "version": "0.2.0+codex.20260819021438",
+  "version": "0.2.0+codex.20260820002607",
   "description": "Register visible ANASA ticket sessions and coordinate fast FE/BE integration batches through Temporal.",
   "author": {
     "name": "litmerssj"
