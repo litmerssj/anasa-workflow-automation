@@ -259,6 +259,7 @@ async def test_backend_deployment_dispatches_staging_workflow_from_integration_b
     ]
     assert "--field" in command
     assert "backend_sha=integration-head" in command
+    assert "source_branch=integration/backend" in command
     assert "request_id=release-batch-1" in command
     assert captured["wait"] == (
         "litmers-dev/be_anasa",
