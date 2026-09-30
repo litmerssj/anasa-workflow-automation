@@ -796,6 +796,7 @@ class GitHubGateway:
             "environment": request.environment,
             "mode": "deploy",
             "backend_sha": integration_sha,
+            "source_branch": integration_branch,
             "backend_image_digest": request.backend_image_digest,
             "manifest_hash": request.manifest_hash,
             "batch_id": batch_id,
