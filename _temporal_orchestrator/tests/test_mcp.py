@@ -36,6 +36,7 @@ async def test_mcp_server_exposes_ticket_control_tools() -> None:
         "anasa_approve_prs",
         "anasa_start_backend_batch",
         "anasa_start_visible_backend_batch",
+        "anasa_deploy_backend_batch",
         "anasa_start_visible_frontend_batch",
         "anasa_submit_qa_evidence",
         "anasa_retry_backend_batch",

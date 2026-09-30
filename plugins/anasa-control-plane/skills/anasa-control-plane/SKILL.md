@@ -48,13 +48,17 @@ Use the `anasa-temporal` MCP tools for durable session registration and integrat
 - A temporary integration task uses `anasa_list_integration_candidates(repository)` instead of
   polling every ticket. It must not become a persistent dashboard.
 - Freeze the selected ticket IDs and exact heads before integration.
-- Backend confirmation must equal `DEPLOY BACKEND <batch-id>` and calls
-  `anasa_start_visible_backend_batch`.
+- Backend merge confirmation must equal `MERGE BACKEND <batch-id>` and calls
+  `anasa_start_visible_backend_batch`. This only updates the repository's persistent
+  integration branch and leaves the batch at `WAIT_DEPLOYMENT`.
+- Deployment confirmation must equal `DEPLOY BACKEND <batch-id>` and calls
+  `anasa_deploy_backend_batch` during the approved deployment window.
 - Frontend confirmation must equal `MERGE FRONTEND <batch-id>` and calls
   `anasa_start_visible_frontend_batch`.
 - Never mix `fe_anasa` and `fe_anasa_ord` in one frontend batch.
-- Integration activities use one integration PR and one target-branch merge. They do not re-run the
-  individual ticket development lifecycle.
+- Integration activities use one integration PR and one target-branch merge. Backend deployment is
+  a separate explicit activity against the exact integration SHA. They do not re-run the individual
+  ticket development lifecycle.
 
 ## Failure and speed rules
 

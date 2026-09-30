@@ -74,7 +74,10 @@ Linear 자격증명이 필요한 기존 자동화는 `_customer_board/.env.local
 ## 안전 기본값
 
 - `ANASA_PREVIEW_ONLY=true`
+- backend 통합 머지 확인문: `MERGE BACKEND <batch-id>`
 - backend 배포 확인문: `DEPLOY BACKEND <batch-id>`
+- backend 통합 브랜치: `ANASA_BE_INTEGRATION_BRANCH` (기본값 `integration/backend`)
+- frontend 통합 브랜치: `ANASA_FE_INTEGRATION_BRANCH` (기본값 `integration/frontend`)
 - frontend 통합 확인문: `MERGE FRONTEND <batch-id>`
 - whole merge/deploy activity 자동 재시도 없음
 - deterministic migration/contract/data 오류는 첫 실패에서 중단
@@ -82,6 +85,17 @@ Linear 자격증명이 필요한 기존 자동화는 `_customer_board/.env.local
 
 preview-only를 해제해야 할 때는 `_temporal_orchestrator/.env`의
 `ANASA_RELEASE_TICKETS`에 명시적으로 허용할 티켓만 넣고 설치 명령을 다시 실행합니다.
+
+백엔드 배치는 리뷰된 후보를 `integration/backend`에 순서대로 합친 뒤
+`WAIT_DEPLOYMENT`에서 멈춥니다. 배포 창이 열렸을 때 같은 batch id로 별도
+`DEPLOY BACKEND <batch-id>`를 호출해야 staging 배포를 관찰하고 티켓을 QA 단계로 넘깁니다.
+통합 브랜치에는 후보를 합칠 때 최신 `develop`을 먼저 반영하므로, 이미 base 또는 통합
+브랜치에 들어간 exact SHA는 다시 merge하지 않습니다.
+
+`ANASA_BACKEND_DEPLOY_WORKFLOW`가 `workflow_dispatch` 방식이면 그 호출부도
+`ref=integration/backend`와 `backend_sha=<integration SHA>`를 전달해야 합니다. 기존
+release-train 입력(`request_id`, `manifest_hash`, Candidate receipt 등)은 해당 배포
+workflow의 계약대로 별도로 채워야 하며, control plane은 값을 추정하지 않습니다.
 
 ## 서비스 확인과 중지
 

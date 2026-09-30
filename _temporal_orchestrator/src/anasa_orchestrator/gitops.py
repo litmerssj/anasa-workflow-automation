@@ -9,6 +9,7 @@ from pathlib import Path
 from .command import CommandError, run_command
 from .config import PROJECTS_ROOT, RepositoryConfig, Settings
 from .models import (
+    BackendBatchDeploymentInput,
     BackendBatchInput,
     BackendBatchItem,
     BackendBatchResult,
@@ -273,7 +274,13 @@ class GitHubGateway:
             urls.append(self._environment_url("ANASA_FRONTEND_URL", "https://erp2.spjoint.com"))
         return MergeResult(merged_shas=merged, deployment_urls=urls)
 
-    async def merge_and_deploy_backend(self, input: BackendBatchInput) -> BackendBatchResult:
+    async def merge_backend_batch(self, input: BackendBatchInput) -> BackendBatchResult:
+        """Assemble and merge one ordered batch into the repository integration branch.
+
+        The integration PR is deliberately based on the persistent integration branch. This
+        keeps merge and deployment separate: merging a reviewed batch updates the queue branch,
+        while deployment is requested later for the resulting integration SHA.
+        """
         started = time.perf_counter()
         phase_durations: dict[str, float] = {}
         self._require_release_scope([item.ticket_id for item in input.items])
@@ -285,6 +292,9 @@ class GitHubGateway:
         ]
         if not artifacts:
             raise RuntimeError("backend batch contains no backend PR")
+        backend = self._repository_config("be_anasa")
+        integration_ref = await self._ensure_integration_branch(backend)
+        await run_command(["git", "fetch", "origin", backend.base_branch], cwd=backend.checkout)
         approved_heads: dict[str, str] = {}
 
         async def validate_item(item: BackendBatchItem) -> tuple[str, str]:
@@ -296,54 +306,106 @@ class GitHubGateway:
             if item.approved_shas.get("be_anasa") != artifact.head_sha:
                 raise RuntimeError(f"approved backend SHA is stale for {item.ticket_id}")
             viewed = await run_command(
-                [
-                    "gh",
-                    "pr",
-                    "view",
-                    artifact.pr_url,
-                    "--json",
-                    "headRefOid,state",
-                ]
+                ["gh", "pr", "view", artifact.pr_url, "--json", "headRefOid,state"]
             )
             pr = json.loads(viewed.stdout)
             if pr.get("headRefOid") != artifact.head_sha:
                 raise RuntimeError(f"backend PR head changed for {item.ticket_id}")
-            if pr.get("state") != "OPEN":
-                raise RuntimeError(f"backend PR is not open for {item.ticket_id}")
+            if pr.get("state") not in {"OPEN", "MERGED"}:
+                raise RuntimeError(f"backend PR is not open or merged for {item.ticket_id}")
+            if pr.get("state") == "MERGED":
+                in_base = await run_command(
+                    ["git", "merge-base", "--is-ancestor", artifact.head_sha, backend.base_ref],
+                    cwd=backend.checkout,
+                    check=False,
+                )
+                in_integration = await run_command(
+                    ["git", "merge-base", "--is-ancestor", artifact.head_sha, integration_ref],
+                    cwd=backend.checkout,
+                    check=False,
+                )
+                if in_base.returncode != 0 and in_integration.returncode != 0:
+                    raise RuntimeError(
+                        "merged backend PR head is not in base or integration branch "
+                        f"for {item.ticket_id}"
+                    )
             return item.ticket_id, artifact.head_sha
 
-        validated = await asyncio.gather(*(validate_item(item) for item in input.items))
-        approved_heads.update(validated)
+        approved_heads.update(await asyncio.gather(*(validate_item(item) for item in input.items)))
         phase_durations["validate_candidates"] = time.perf_counter() - started
-
-        backend = self._repository_config("be_anasa")
-        await run_command(["git", "fetch", "origin", backend.base_branch], cwd=backend.checkout)
         slug = await self._repository_slug(backend.checkout)
         assemble_started = time.perf_counter()
         batch_artifact = await self._create_repository_batch_pr(
             input,
             backend.checkout,
-            backend.base_branch,
-            backend.base_ref,
+            backend.integration_branch,
+            integration_ref,
             slug,
             repository_name="be_anasa",
             branch_prefix="backend-batch",
             root_name="backend-batches",
+            refresh_branch=backend.base_branch,
         )
         phase_durations["assemble_integration_pr"] = time.perf_counter() - assemble_started
         merge_started = time.perf_counter()
-        deployed_sha = await self._merge_pr(batch_artifact)
+        integration_sha = await self._merge_pr(batch_artifact)
         phase_durations["merge_integration_pr"] = time.perf_counter() - merge_started
-        deploy_started = time.perf_counter()
-        deployment_url = await self._wait_for_backend_deployment(slug, deployed_sha)
-        phase_durations["wait_for_deployment"] = time.perf_counter() - deploy_started
         phase_durations["total"] = time.perf_counter() - started
         return BackendBatchResult(
             batch_id=input.batch_id,
-            deployed_sha=deployed_sha,
-            deployment_url=deployment_url,
+            deployed_sha=integration_sha,
+            deployment_url="",
             merged_shas=approved_heads,
             phase_durations=phase_durations,
+            integration_branch=backend.integration_branch,
+            integration_sha=integration_sha,
+        )
+
+    async def deploy_backend_batch(self, input: BackendBatchDeploymentInput) -> BackendBatchResult:
+        backend = self._repository_config("be_anasa")
+        if not input.integration_sha.strip():
+            raise ValueError("integration SHA is required for backend deployment")
+        await run_command(
+            ["git", "fetch", "origin", backend.integration_branch], cwd=backend.checkout
+        )
+        exact = await run_command(
+            [
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                input.integration_sha,
+                self._integration_ref(backend),
+            ],
+            cwd=backend.checkout,
+            check=False,
+        )
+        if exact.returncode != 0:
+            raise RuntimeError("integration SHA is not present on the integration branch")
+        slug = await self._repository_slug(backend.checkout)
+        started = time.perf_counter()
+        deployment_url = await self._wait_for_backend_deployment(
+            slug, input.integration_sha, backend.integration_branch
+        )
+        return BackendBatchResult(
+            batch_id=input.batch.batch_id,
+            deployed_sha=input.integration_sha,
+            deployment_url=deployment_url,
+            merged_shas={
+                item.ticket_id: artifact.head_sha
+                for item in input.batch.items
+                for artifact in item.artifacts
+                if artifact.repository == "be_anasa" and artifact.has_changes
+            },
+            phase_durations={"wait_for_deployment": time.perf_counter() - started},
+            integration_branch=backend.integration_branch,
+            integration_sha=input.integration_sha,
+        )
+
+    async def merge_and_deploy_backend(self, input: BackendBatchInput) -> BackendBatchResult:
+        """Compatibility wrapper for callers using the pre-5-1 one-step API."""
+        merged = await self.merge_backend_batch(input)
+        return await self.deploy_backend_batch(
+            BackendBatchDeploymentInput(input, merged.integration_sha or merged.deployed_sha)
         )
 
     async def merge_and_deploy_frontend(self, input: BackendBatchInput) -> BackendBatchResult:
@@ -363,7 +425,9 @@ class GitHubGateway:
                 ["gh", "pr", "view", artifact.pr_url, "--json", "headRefOid,state"]
             )
             payload = json.loads(viewed.stdout)
-            if payload.get("headRefOid") != artifact.head_sha or payload.get("state") != "OPEN":
+            if payload.get("headRefOid") != artifact.head_sha:
+                raise RuntimeError(f"frontend PR head changed for {item.ticket_id}")
+            if payload.get("state") not in {"OPEN", "MERGED"}:
                 raise RuntimeError(f"frontend PR changed or closed for {item.ticket_id}")
             return item.ticket_id, artifact.head_sha
 
@@ -383,18 +447,20 @@ class GitHubGateway:
         ):
             raise RuntimeError("frontend integration batch cannot mix repositories")
         frontend = self._repository_config(repository_name)
+        integration_ref = await self._ensure_integration_branch(frontend)
         await run_command(["git", "fetch", "origin", frontend.base_branch], cwd=frontend.checkout)
         slug = await self._repository_slug(frontend.checkout)
         assemble_started = time.perf_counter()
         batch_artifact = await self._create_repository_batch_pr(
             input,
             frontend.checkout,
-            frontend.base_branch,
-            frontend.base_ref,
+            frontend.integration_branch,
+            integration_ref,
             slug,
             repository_name=repository_name,
             branch_prefix="frontend-batch",
             root_name="frontend-batches",
+            refresh_branch=frontend.base_branch,
         )
         phase_durations["assemble_integration_pr"] = time.perf_counter() - assemble_started
         merge_started = time.perf_counter()
@@ -423,6 +489,7 @@ class GitHubGateway:
         repository_name: str,
         branch_prefix: str,
         root_name: str,
+        refresh_branch: str | None = None,
     ) -> PrArtifact:
         safe_batch = re.sub(r"[^a-zA-Z0-9-]+", "-", input.batch_id).strip("-")
         if not safe_batch:
@@ -454,7 +521,10 @@ class GitHubGateway:
             raise RuntimeError(
                 f"backend batch worktree is dirty and requires owned recovery: {worktree}"
             )
-        await run_command(["git", "merge", "--no-edit", f"origin/{base_branch}"], cwd=worktree)
+        if refresh_branch:
+            await run_command(
+                ["git", "merge", "--no-edit", f"origin/{refresh_branch}"], cwd=worktree
+            )
 
         branch_names = list(
             dict.fromkeys(
@@ -476,6 +546,13 @@ class GitHubGateway:
                 for artifact in item.artifacts
                 if artifact.repository == repository_name and artifact.has_changes
             )
+            already_integrated = await run_command(
+                ["git", "merge-base", "--is-ancestor", artifact.head_sha, "HEAD"],
+                cwd=worktree,
+                check=False,
+            )
+            if already_integrated.returncode == 0:
+                continue
             merge = await run_command(
                 ["git", "merge", "--no-ff", "--no-edit", artifact.head_sha],
                 cwd=worktree,
@@ -496,7 +573,7 @@ class GitHubGateway:
                 "--repo",
                 slug,
                 "--json",
-                "url,headRefOid,state",
+                "url,headRefOid,state,mergeCommit",
             ],
             cwd=worktree,
             check=False,
@@ -540,9 +617,54 @@ class GitHubGateway:
             has_changes=True,
         )
 
+    async def _ensure_integration_branch(self, repository: RepositoryConfig) -> str:
+        """Create the persistent integration branch once, from the current base."""
+        await run_command(
+            ["git", "fetch", "origin", repository.base_branch], cwd=repository.checkout
+        )
+        remote = await run_command(
+            [
+                "git",
+                "ls-remote",
+                "--exit-code",
+                "origin",
+                f"refs/heads/{repository.integration_branch}",
+            ],
+            cwd=repository.checkout,
+            check=False,
+        )
+        if remote.returncode != 0:
+            await run_command(
+                [
+                    "git",
+                    "push",
+                    "origin",
+                    f"{repository.base_ref}:refs/heads/{repository.integration_branch}",
+                ],
+                cwd=repository.checkout,
+            )
+        await run_command(
+            ["git", "fetch", "origin", repository.integration_branch], cwd=repository.checkout
+        )
+        return self._integration_ref(repository)
+
+    @staticmethod
+    def _integration_ref(repository: RepositoryConfig) -> str:
+        return repository.integration_ref or f"origin/{repository.integration_branch}"
+
     async def _merge_pr(self, artifact: PrArtifact) -> str:
         if not artifact.pr_url:
             raise RuntimeError(f"PR URL missing for {artifact.repository}")
+        current = await run_command(
+            ["gh", "pr", "view", artifact.pr_url, "--json", "state,headRefOid,mergeCommit"]
+        )
+        current_payload = json.loads(current.stdout)
+        if current_payload.get("headRefOid") != artifact.head_sha:
+            raise RuntimeError(f"PR head changed before merge: {artifact.pr_url}")
+        if current_payload.get("state") == "MERGED" and current_payload.get("mergeCommit"):
+            return current_payload["mergeCommit"]["oid"]
+        if current_payload.get("state") != "OPEN":
+            raise RuntimeError(f"PR is not open: {artifact.pr_url}")
         await run_command(
             [
                 "gh",
@@ -569,7 +691,9 @@ class GitHubGateway:
             raise RuntimeError(f"PR merge was not confirmed: {artifact.pr_url}")
         return payload["mergeCommit"]["oid"]
 
-    async def _wait_for_backend_deployment(self, slug: str, deployed_sha: str) -> str:
+    async def _wait_for_backend_deployment(
+        self, slug: str, deployed_sha: str, branch: str = "develop"
+    ) -> str:
         for _ in range(60):
             listed = await run_command(
                 [
@@ -581,7 +705,7 @@ class GitHubGateway:
                     "--workflow",
                     self._settings.backend_deploy_workflow,
                     "--branch",
-                    "develop",
+                    branch,
                     "--limit",
                     "10",
                     "--json",
@@ -686,6 +810,14 @@ class GitHubGateway:
                 checkout=checkout,
                 base_ref=os.getenv("ANASA_ORDER_FE_BASE_REF", "origin/main"),
                 base_branch=os.getenv("ANASA_ORDER_FE_BASE_BRANCH", "main"),
+                integration_branch=os.getenv(
+                    "ANASA_ORDER_FE_INTEGRATION_BRANCH", "integration/frontend"
+                ),
+                integration_ref=os.getenv(
+                    "ANASA_ORDER_FE_INTEGRATION_REF",
+                    "origin/"
+                    + os.getenv("ANASA_ORDER_FE_INTEGRATION_BRANCH", "integration/frontend"),
+                ),
             )
         raise RuntimeError(f"repository is not configured: {name}")
 

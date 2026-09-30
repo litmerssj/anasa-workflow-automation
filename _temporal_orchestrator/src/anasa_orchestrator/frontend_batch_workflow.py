@@ -20,7 +20,7 @@ with workflow.unsafe.imports_passed_through():
 
 @workflow.defn
 class FrontendBatchWorkflow:
-    """One integration PR and one production release for visible FE ticket sessions."""
+    """One integration PR and one preview deployment for visible FE sessions."""
 
     def __init__(self) -> None:
         self._snapshot = BackendBatchSnapshot()
@@ -62,6 +62,11 @@ class FrontendBatchWorkflow:
                 batch_id=input.batch_id,
                 deployed_sha=result.deployed_sha,
                 deployment_url=result.deployment_url,
+                repository=next(
+                    artifact.repository
+                    for artifact in item.artifacts
+                    if artifact.repository in {"fe_anasa", "fe_anasa_ord"}
+                ),
             )
             handle = workflow.get_external_workflow_handle_for(
                 VisibleTicketWorkflow.run, item.workflow_id

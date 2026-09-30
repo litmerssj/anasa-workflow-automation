@@ -16,6 +16,7 @@ from .linear import LinearGateway
 from .models import (
     AnalysisResult,
     AnalyzeTicketInput,
+    BackendBatchDeploymentInput,
     BackendBatchInput,
     BackendBatchResult,
     CompleteTicketInput,
@@ -329,6 +330,16 @@ Return only the requested JSON summary when finished.
     @activity.defn(name="execute_backend_batch")
     async def execute_backend_batch(self, input: BackendBatchInput) -> BackendBatchResult:
         return await self._github.merge_and_deploy_backend(input)
+
+    @activity.defn(name="execute_backend_integration")
+    async def execute_backend_integration(self, input: BackendBatchInput) -> BackendBatchResult:
+        return await self._github.merge_backend_batch(input)
+
+    @activity.defn(name="execute_backend_deployment")
+    async def execute_backend_deployment(
+        self, input: BackendBatchDeploymentInput
+    ) -> BackendBatchResult:
+        return await self._github.deploy_backend_batch(input)
 
     @activity.defn(name="execute_frontend_batch")
     async def execute_frontend_batch(self, input: BackendBatchInput) -> BackendBatchResult:

@@ -31,6 +31,8 @@ class RepositoryConfig:
     checkout: Path
     base_ref: str
     base_branch: str
+    integration_branch: str = "integration"
+    integration_ref: str = "origin/integration"
 
 
 @dataclass(frozen=True)
@@ -54,12 +56,22 @@ def settings() -> Settings:
             checkout=Path(os.getenv("ANASA_BE_REPO", str(PROJECTS_ROOT / "be_anasa"))).expanduser(),
             base_ref=os.getenv("ANASA_BE_BASE_REF", "origin/develop"),
             base_branch=os.getenv("ANASA_BE_BASE_BRANCH", "develop"),
+            integration_branch=os.getenv("ANASA_BE_INTEGRATION_BRANCH", "integration/backend"),
+            integration_ref=os.getenv(
+                "ANASA_BE_INTEGRATION_REF",
+                "origin/" + os.getenv("ANASA_BE_INTEGRATION_BRANCH", "integration/backend"),
+            ),
         ),
         RepositoryConfig(
             name="fe_anasa",
             checkout=Path(os.getenv("ANASA_FE_REPO", str(PROJECTS_ROOT / "fe_anasa"))).expanduser(),
             base_ref=os.getenv("ANASA_FE_BASE_REF", "origin/main"),
             base_branch=os.getenv("ANASA_FE_BASE_BRANCH", "main"),
+            integration_branch=os.getenv("ANASA_FE_INTEGRATION_BRANCH", "integration/frontend"),
+            integration_ref=os.getenv(
+                "ANASA_FE_INTEGRATION_REF",
+                "origin/" + os.getenv("ANASA_FE_INTEGRATION_BRANCH", "integration/frontend"),
+            ),
         ),
     )
     release_tickets = frozenset(

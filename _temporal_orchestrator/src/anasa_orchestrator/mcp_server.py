@@ -229,8 +229,12 @@ async def anasa_start_backend_batch(
     confirmation: str,
     approved_by: str = "hong-seokju",
 ) -> dict[str, str]:
-    """Merge and deploy approved backend SHAs. confirmation must equal DEPLOY BACKEND <batch_id>."""
-    expected = f"DEPLOY BACKEND {batch_id}"
+    """Merge approved backend SHAs into the integration branch.
+
+    confirmation must equal ``MERGE BACKEND <batch_id>``. Deployment is a
+    separate explicit operation for the resulting integration SHA.
+    """
+    expected = f"MERGE BACKEND {batch_id}"
     if confirmation != expected:
         raise ValueError(f"confirmation must equal: {expected}")
     return await (await _service()).start_backend_batch(ticket_ids, batch_id, approved_by)
@@ -243,11 +247,27 @@ async def anasa_start_visible_backend_batch(
     confirmation: str,
     approved_by: str = "hong-seokju",
 ) -> dict[str, str]:
-    """Create one backend integration merge/deploy from visible ticket ready candidates."""
-    expected = f"DEPLOY BACKEND {batch_id}"
+    """Create one backend integration merge from visible ticket ready candidates."""
+    expected = f"MERGE BACKEND {batch_id}"
     if confirmation != expected:
         raise ValueError(f"confirmation must equal: {expected}")
     return await (await _service()).start_visible_backend_batch(ticket_ids, batch_id, approved_by)
+
+
+@mcp.tool()
+async def anasa_deploy_backend_batch(
+    batch_id: str,
+    confirmation: str,
+    requested_by: str = "hong-seokju",
+) -> dict[str, str]:
+    """Deploy a previously merged integration branch batch.
+
+    confirmation must equal ``DEPLOY BACKEND <batch_id>``.
+    """
+    expected = f"DEPLOY BACKEND {batch_id}"
+    if confirmation != expected:
+        raise ValueError(f"confirmation must equal: {expected}")
+    return await (await _service()).deploy_backend_batch(batch_id, requested_by)
 
 
 @mcp.tool()

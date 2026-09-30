@@ -19,6 +19,7 @@ from .models import (
     BackendBatchItem,
     BackendBatchSnapshot,
     CustomerAnswer,
+    DeploymentRequest,
     DirectionApproval,
     IntegrationCandidate,
     PrApproval,
@@ -306,7 +307,17 @@ class OrchestratorService:
         return [
             item
             for item in tickets
-            if (item.get("integration_candidate") or {}).get("repository") == repository
+            if any(
+                candidate.get("repository") == repository
+                for candidate in (
+                    item.get("integration_candidates")
+                    or (
+                        [item["integration_candidate"]]
+                        if item.get("integration_candidate")
+                        else []
+                    )
+                )
+            )
         ]
 
     async def sync_visible_ticket(self, update: VisibleStateUpdate) -> VisibleTicketSnapshot:
@@ -414,6 +425,18 @@ class OrchestratorService:
         )
         return {"batch_id": batch_id, "workflow_id": handle.id}
 
+    async def deploy_backend_batch(self, batch_id: str, requested_by: str) -> dict[str, str]:
+        if not batch_id.strip() or not requested_by.strip():
+            raise ValueError("batch_id and requested_by are required")
+        handle = self._client.get_workflow_handle_for(
+            BackendBatchWorkflow.run, f"anasa-backend-batch-{batch_id}"
+        )
+        snapshot = await handle.execute_update(
+            BackendBatchWorkflow.deploy,
+            DeploymentRequest(batch_id=batch_id, requested_by=requested_by),
+        )
+        return {"batch_id": batch_id, "state": snapshot.current_state}
+
     async def start_visible_backend_batch(
         self, ticket_ids: list[str], batch_id: str, approved_by: str
     ) -> dict[str, str]:
@@ -425,11 +448,21 @@ class OrchestratorService:
         )
         items: list[BackendBatchItem] = []
         for ticket_id, snapshot in zip(normalized, snapshots, strict=True):
-            candidate = snapshot.integration_candidate
+            candidates = snapshot.integration_candidates or (
+                [snapshot.integration_candidate] if snapshot.integration_candidate else []
+            )
+            candidate = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if candidate is not None
+                    and candidate.repository == "be_anasa"
+                    and candidate.repository not in snapshot.integrated_repositories
+                ),
+                None,
+            )
             if snapshot.current_state != "READY_BE_INTEGRATION" or candidate is None:
                 raise ValueError(f"{ticket_id} is not ready for backend integration")
-            if candidate.repository != "be_anasa":
-                raise ValueError(f"{ticket_id} is not a backend candidate")
             artifact = PrArtifact(
                 repository="be_anasa",
                 pr_url=candidate.pr_url,
@@ -472,11 +505,30 @@ class OrchestratorService:
         items: list[BackendBatchItem] = []
         repository_name: str | None = None
         for ticket_id, snapshot in zip(normalized, snapshots, strict=True):
-            candidate = snapshot.integration_candidate
-            if snapshot.current_state != "READY_FE_INTEGRATION" or candidate is None:
+            candidates = snapshot.integration_candidates or (
+                [snapshot.integration_candidate] if snapshot.integration_candidate else []
+            )
+            pending_backend = any(
+                candidate.repository == "be_anasa"
+                and candidate.repository not in snapshot.integrated_repositories
+                for candidate in candidates
+            )
+            candidate = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if candidate is not None
+                    and candidate.repository in {"fe_anasa", "fe_anasa_ord"}
+                    and candidate.repository not in snapshot.integrated_repositories
+                ),
+                None,
+            )
+            if (
+                snapshot.current_state != "READY_FE_INTEGRATION"
+                or candidate is None
+                or pending_backend
+            ):
                 raise ValueError(f"{ticket_id} is not ready for frontend integration")
-            if candidate.repository not in {"fe_anasa", "fe_anasa_ord"}:
-                raise ValueError(f"{ticket_id} is not a frontend candidate")
             repository_name = repository_name or candidate.repository
             if candidate.repository != repository_name:
                 raise ValueError("frontend batch cannot mix repositories")

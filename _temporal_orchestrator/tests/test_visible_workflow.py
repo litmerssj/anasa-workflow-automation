@@ -93,13 +93,48 @@ async def test_visible_ticket_tracks_app_task_reports_without_running_agent() ->
                 ),
             )
             assert ready.current_state == "READY_BE_INTEGRATION"
+            ready_with_fe = await handle.execute_update(
+                VisibleTicketWorkflow.publish_integration_candidate,
+                IntegrationCandidate(
+                    ticket_id="ANA-348",
+                    repository="fe_anasa",
+                    pr_url="https://github.test/pr/348-fe",
+                    head_sha="head-348-fe",
+                    branch_name="codex/ana-348-fe",
+                    base_branch="main",
+                    approved_by="tester",
+                ),
+            )
+            assert ready_with_fe.current_state == "READY_BE_INTEGRATION"
+            assert {item.repository for item in ready_with_fe.integration_candidates} == {
+                "be_anasa",
+                "fe_anasa",
+            }
+            assert ready_with_fe.pr_urls == [
+                "https://github.test/pr/348",
+                "https://github.test/pr/348-fe",
+            ]
+            assert ready_with_fe.exact_shas == {
+                "be_anasa": "head-348",
+                "fe_anasa": "head-348-fe",
+            }
             await handle.signal(
                 VisibleTicketWorkflow.integration_completed,
                 BackendBatchCompletion("ANA-348", "batch-348", "merge-348", "https://deploy"),
             )
+            backend_deployed = await handle.query(VisibleTicketWorkflow.get_status)
+            assert backend_deployed.current_state == "READY_FE_INTEGRATION"
+            assert backend_deployed.integrated_repositories == ["be_anasa"]
+            await handle.signal(
+                VisibleTicketWorkflow.integration_completed,
+                BackendBatchCompletion(
+                    "ANA-348", "frontend-batch-348", "merge-fe-348", "https://frontend",
+                    "fe_anasa",
+                ),
+            )
             deployed = await handle.query(VisibleTicketWorkflow.get_status)
             assert deployed.current_state == "POST_DEPLOY_QA"
-            assert deployed.deployed_sha == "merge-348"
+            assert deployed.deployed_sha == "merge-fe-348"
             await handle.cancel()
 
     assert deployed.transitions == [
@@ -109,6 +144,7 @@ async def test_visible_ticket_tracks_app_task_reports_without_running_agent() ->
         "COMPLETE",
         "ANALYZE",
         "READY_BE_INTEGRATION",
+        "READY_FE_INTEGRATION",
         "POST_DEPLOY_QA",
     ]
 

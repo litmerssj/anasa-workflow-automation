@@ -34,6 +34,8 @@ async def run_worker() -> None:
             activities.merge_frontend,
             activities.complete_ticket,
             activities.execute_backend_batch,
+            activities.execute_backend_integration,
+            activities.execute_backend_deployment,
             activities.execute_frontend_batch,
         ],
     )

@@ -25,6 +25,7 @@ class TicketPhase(str, Enum):
 
 class BatchPhase(str, Enum):
     MERGE = "MERGE"
+    WAIT_DEPLOYMENT = "WAIT_DEPLOYMENT"
     DEPLOY = "DEPLOY"
     COMPLETE = "COMPLETE"
     BLOCKED = "BLOCKED"
@@ -218,6 +219,7 @@ class BackendBatchCompletion:
     batch_id: str
     deployed_sha: str
     deployment_url: str
+    repository: str = "be_anasa"
 
 
 @dataclass
@@ -282,6 +284,12 @@ class RetryRequest:
 
 
 @dataclass
+class DeploymentRequest:
+    batch_id: str
+    requested_by: str
+
+
+@dataclass
 class WorkflowInstruction:
     ticket_id: str
     prompt: str
@@ -332,12 +340,20 @@ class BackendBatchInput:
 
 
 @dataclass
+class BackendBatchDeploymentInput:
+    batch: BackendBatchInput
+    integration_sha: str
+
+
+@dataclass
 class BackendBatchResult:
     batch_id: str
     deployed_sha: str
     deployment_url: str
     merged_shas: dict[str, str]
     phase_durations: dict[str, float] = field(default_factory=dict)
+    integration_branch: str = ""
+    integration_sha: str = ""
 
 
 @dataclass
@@ -346,6 +362,8 @@ class BackendBatchSnapshot:
     current_state: str = BatchPhase.MERGE.value
     tickets: list[str] = field(default_factory=list)
     deployed_sha: str | None = None
+    integration_branch: str | None = None
+    integration_sha: str | None = None
     deployment_url: str | None = None
     merged_shas: dict[str, str] = field(default_factory=dict)
     report_markdown: str | None = None
@@ -404,6 +422,8 @@ class VisibleTicketSnapshot:
     pr_urls: list[str] = field(default_factory=list)
     exact_shas: dict[str, str] = field(default_factory=dict)
     integration_candidate: IntegrationCandidate | None = None
+    integration_candidates: list[IntegrationCandidate] = field(default_factory=list)
+    integrated_repositories: list[str] = field(default_factory=list)
     backend_batch_id: str | None = None
     deployed_sha: str | None = None
     deployment_url: str | None = None

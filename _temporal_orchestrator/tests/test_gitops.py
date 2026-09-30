@@ -1,14 +1,22 @@
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from anasa_orchestrator.command import CommandResult
 from anasa_orchestrator.config import PROJECTS_ROOT, RepositoryConfig, Settings
 from anasa_orchestrator.gitops import (
     GitHubGateway,
     WorktreeManager,
     normalize_ticket_id,
     normalize_ticket_list,
+)
+from anasa_orchestrator.models import (
+    BackendBatchDeploymentInput,
+    BackendBatchInput,
+    BackendBatchItem,
+    PrArtifact,
 )
 
 
@@ -66,6 +74,138 @@ def test_order_frontend_default_is_relative_to_the_checkout(
 
 def git(*args: str, cwd: Path) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+def backend_gateway(tmp_path: Path) -> GitHubGateway:
+    return GitHubGateway(
+        Settings(
+            workspace_root=tmp_path / "workspaces",
+            repositories=(
+                RepositoryConfig(
+                    name="be_anasa",
+                    checkout=tmp_path / "backend",
+                    base_ref="origin/develop",
+                    base_branch="develop",
+                    integration_ref="origin/integration/backend",
+                    integration_branch="integration/backend",
+                ),
+            ),
+            github_owner="litmers-dev",
+            backend_deploy_workflow="deploy-staging.yml",
+            preview_only=False,
+            release_tickets=frozenset(),
+        )
+    )
+
+
+def backend_batch() -> BackendBatchInput:
+    return BackendBatchInput(
+        batch_id="batch-1",
+        items=[
+            BackendBatchItem(
+                ticket_id="ANA-489",
+                workflow_id="anasa-session-v3-ANA-489",
+                artifacts=[
+                    PrArtifact(
+                        repository="be_anasa",
+                        pr_url="https://github.com/litmers-dev/be_anasa/pull/512",
+                        head_sha="approved-head",
+                        branch_name="codex/ana-489",
+                        base_branch="develop",
+                        backend_change=True,
+                        has_changes=True,
+                    )
+                ],
+                approved_shas={"be_anasa": "approved-head"},
+            )
+        ],
+        approved_by="tester",
+    )
+
+
+async def async_value(value):
+    return value
+
+
+@pytest.mark.asyncio
+async def test_backend_batch_targets_persistent_integration_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gateway = backend_gateway(tmp_path)
+    captured: dict[str, object] = {}
+
+    async def fake_run_command(args, **kwargs):
+        command = list(args)
+        if command[:3] == ["gh", "pr", "view"]:
+            return CommandResult(
+                json.dumps({"headRefOid": "approved-head", "state": "OPEN"}), "", 0
+            )
+        return CommandResult("", "", 0)
+
+    async def fake_create(*args, **kwargs) -> PrArtifact:
+        captured["base_branch"] = args[2]
+        captured["base_ref"] = args[3]
+        captured["refresh_branch"] = kwargs["refresh_branch"]
+        return PrArtifact(
+            repository="be_anasa",
+            pr_url="https://github.com/litmers-dev/be_anasa/pull/999",
+            head_sha="integration-head",
+            branch_name="codex/backend-batch-batch-1",
+            base_branch="integration/backend",
+            backend_change=True,
+            has_changes=True,
+        )
+
+    monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
+    monkeypatch.setattr(
+        gateway, "_ensure_integration_branch", lambda _: async_value("origin/integration/backend")
+    )
+    monkeypatch.setattr(gateway, "_repository_slug", lambda _: async_value("litmers-dev/be_anasa"))
+    monkeypatch.setattr(gateway, "_create_repository_batch_pr", fake_create)
+    monkeypatch.setattr(gateway, "_merge_pr", lambda artifact: async_value(artifact.head_sha))
+
+    result = await gateway.merge_backend_batch(backend_batch())
+
+    assert captured == {
+        "base_branch": "integration/backend",
+        "base_ref": "origin/integration/backend",
+        "refresh_branch": "develop",
+    }
+    assert result.integration_branch == "integration/backend"
+    assert result.integration_sha == "integration-head"
+
+
+@pytest.mark.asyncio
+async def test_backend_deployment_waits_on_integration_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gateway = backend_gateway(tmp_path)
+    observed: dict[str, str] = {}
+
+    async def fake_run_command(args, **kwargs):
+        command = list(args)
+        if command[:3] == ["git", "merge-base", "--is-ancestor"]:
+            assert command[-1] == "origin/integration/backend"
+        return CommandResult("", "", 0)
+
+    async def fake_wait(slug: str, sha: str, branch: str) -> str:
+        observed.update(slug=slug, sha=sha, branch=branch)
+        return "https://github.test/actions/runs/1"
+
+    monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
+    monkeypatch.setattr(gateway, "_repository_slug", lambda _: async_value("litmers-dev/be_anasa"))
+    monkeypatch.setattr(gateway, "_wait_for_backend_deployment", fake_wait)
+
+    result = await gateway.deploy_backend_batch(
+        BackendBatchDeploymentInput(backend_batch(), "integration-head")
+    )
+
+    assert observed == {
+        "slug": "litmers-dev/be_anasa",
+        "sha": "integration-head",
+        "branch": "integration/backend",
+    }
+    assert result.deployed_sha == "integration-head"
 
 
 @pytest.mark.asyncio

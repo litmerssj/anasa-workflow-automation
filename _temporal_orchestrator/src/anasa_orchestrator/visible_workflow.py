@@ -115,9 +115,27 @@ class VisibleTicketWorkflow:
         self, candidate: IntegrationCandidate
     ) -> VisibleTicketSnapshot:
         self._snapshot.integration_candidate = replace(candidate)
-        self._snapshot.pr_urls = [candidate.pr_url]
-        self._snapshot.exact_shas = {candidate.repository: candidate.head_sha}
-        if candidate.repository == "be_anasa":
+        existing = [
+            item
+            for item in self._snapshot.integration_candidates
+            if item.repository != candidate.repository
+        ]
+        existing.append(replace(candidate))
+        self._snapshot.integration_candidates = existing
+        self._snapshot.integrated_repositories = [
+            repository
+            for repository in self._snapshot.integrated_repositories
+            if repository != candidate.repository
+        ]
+        if candidate.pr_url not in self._snapshot.pr_urls:
+            self._snapshot.pr_urls.append(candidate.pr_url)
+        self._snapshot.exact_shas[candidate.repository] = candidate.head_sha
+        pending_backend = any(
+            item.repository == "be_anasa"
+            and item.repository not in self._snapshot.integrated_repositories
+            for item in self._snapshot.integration_candidates
+        )
+        if pending_backend:
             state = "READY_BE_INTEGRATION"
         elif candidate.repository in {"fe_anasa", "fe_anasa_ord"}:
             state = "READY_FE_INTEGRATION"
@@ -146,6 +164,8 @@ class VisibleTicketWorkflow:
         self._snapshot.last_failure = request.reason
         self._snapshot.resume_state = request.state
         self._snapshot.integration_candidate = None
+        self._snapshot.integration_candidates = []
+        self._snapshot.integrated_repositories = []
         self._snapshot.backend_batch_id = None
         self._snapshot.deployed_sha = None
         self._snapshot.deployment_url = None
@@ -168,11 +188,24 @@ class VisibleTicketWorkflow:
         self._snapshot.backend_batch_id = completion.batch_id
         self._snapshot.deployed_sha = completion.deployed_sha
         self._snapshot.deployment_url = completion.deployment_url
-        self._snapshot.current_state = "POST_DEPLOY_QA"
+        if completion.repository not in self._snapshot.integrated_repositories:
+            self._snapshot.integrated_repositories.append(completion.repository)
+        pending = [
+            item
+            for item in self._snapshot.integration_candidates
+            if item.repository not in self._snapshot.integrated_repositories
+        ]
+        if pending and any(item.repository == "be_anasa" for item in pending):
+            next_state = "READY_BE_INTEGRATION"
+        elif pending:
+            next_state = "READY_FE_INTEGRATION"
+        else:
+            next_state = "POST_DEPLOY_QA"
+        self._snapshot.current_state = next_state
         self._snapshot.last_failure = None
         self._snapshot.resume_state = None
-        if not self._snapshot.transitions or self._snapshot.transitions[-1] != "POST_DEPLOY_QA":
-            self._snapshot.transitions.append("POST_DEPLOY_QA")
+        if not self._snapshot.transitions or self._snapshot.transitions[-1] != next_state:
+            self._snapshot.transitions.append(next_state)
         self._snapshot.updated_at = workflow.now().isoformat()
 
     def _copy(self) -> VisibleTicketSnapshot:
@@ -185,6 +218,10 @@ class VisibleTicketWorkflow:
                 if self._snapshot.integration_candidate
                 else None
             ),
+            integration_candidates=[
+                replace(candidate) for candidate in self._snapshot.integration_candidates
+            ],
+            integrated_repositories=list(self._snapshot.integrated_repositories),
             instruction_history=list(self._snapshot.instruction_history),
             transitions=list(self._snapshot.transitions),
         )

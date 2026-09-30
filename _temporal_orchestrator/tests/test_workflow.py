@@ -11,11 +11,13 @@ from anasa_orchestrator.models import (
     AnalysisResult,
     AnalyzeTicketInput,
     BackendBatchCompletion,
+    BackendBatchDeploymentInput,
     BackendBatchInput,
     BackendBatchItem,
     BackendBatchResult,
     CompleteTicketInput,
     CompleteTicketResult,
+    DeploymentRequest,
     DirectionApproval,
     ImplementationInput,
     ImplementationResult,
@@ -155,6 +157,32 @@ async def execute_backend_batch(input: BackendBatchInput) -> BackendBatchResult:
         deployed_sha="deployed-sha",
         deployment_url="https://deploy",
         merged_shas={"ANA-65": "abc2"},
+    )
+
+
+@activity.defn(name="execute_backend_integration")
+async def execute_backend_integration(input: BackendBatchInput) -> BackendBatchResult:
+    return BackendBatchResult(
+        batch_id=input.batch_id,
+        deployed_sha="integration-sha",
+        deployment_url="",
+        merged_shas={"ANA-65": "abc2"},
+        integration_branch="integration/backend",
+        integration_sha="integration-sha",
+    )
+
+
+@activity.defn(name="execute_backend_deployment")
+async def execute_backend_deployment(
+    input: BackendBatchDeploymentInput,
+) -> BackendBatchResult:
+    return BackendBatchResult(
+        batch_id=input.batch.batch_id,
+        deployed_sha=input.integration_sha,
+        deployment_url="https://deploy",
+        merged_shas={"ANA-65": "abc2"},
+        integration_branch="integration/backend",
+        integration_sha=input.integration_sha,
     )
 
 
@@ -323,7 +351,7 @@ async def test_backend_batch_signals_each_ticket_after_deployment() -> None:
             env.client,
             task_queue="batch-queue",
             workflows=[BackendBatchWorkflow, BatchReceiverWorkflow],
-            activities=[execute_backend_batch],
+            activities=[execute_backend_integration, execute_backend_deployment],
         ):
             receiver = await env.client.start_workflow(
                 BatchReceiverWorkflow.run,
@@ -357,11 +385,20 @@ async def test_backend_batch_signals_each_ticket_after_deployment() -> None:
                 id="batch-1",
                 task_queue="batch-queue",
             )
+            for _ in range(100):
+                status = await batch.query(BackendBatchWorkflow.get_status)
+                if status.current_state == "WAIT_DEPLOYMENT":
+                    break
+                await asyncio.sleep(0.01)
+            await batch.execute_update(
+                BackendBatchWorkflow.deploy,
+                DeploymentRequest("batch-1", "tester"),
+            )
             batch_result = await batch.result()
             receiver_result = await receiver.result()
 
     assert batch_result.current_state == "COMPLETE"
-    assert receiver_result == "deployed-sha"
+    assert receiver_result == "integration-sha"
 
 
 @pytest.mark.asyncio
