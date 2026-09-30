@@ -29,6 +29,7 @@ class BackendBatchWorkflow:
         self._snapshot = BackendBatchSnapshot()
         self._retry_requested = False
         self._deploy_requested = False
+        self._deployment_request: DeploymentRequest | None = None
 
     @workflow.run
     async def run(self, input: BackendBatchInput) -> BackendBatchSnapshot:
@@ -56,7 +57,11 @@ class BackendBatchWorkflow:
 
         deployed = await self._run_activity(
             "execute_backend_deployment",
-            BackendBatchDeploymentInput(input, self._snapshot.integration_sha or ""),
+            BackendBatchDeploymentInput(
+                input,
+                self._snapshot.integration_sha or "",
+                self._deployment_request,
+            ),
             BatchPhase.DEPLOY,
         )
         self._snapshot.deployed_sha = deployed.deployed_sha
@@ -123,6 +128,7 @@ class BackendBatchWorkflow:
 
     @workflow.update
     def deploy(self, request: DeploymentRequest) -> BackendBatchSnapshot:
+        self._deployment_request = request
         self._deploy_requested = True
         return self._copy_snapshot()
 
@@ -134,6 +140,14 @@ class BackendBatchWorkflow:
             raise ValueError("backend batch is not waiting for deployment")
         if not request.requested_by.strip():
             raise ValueError("requested_by must not be blank")
+        if not request.request_id.strip():
+            raise ValueError("request_id is required for deploy-staging.yml")
+        if not request.manifest_hash.strip():
+            raise ValueError("manifest_hash is required for deploy-staging.yml")
+        if not request.candidate_receipt_id.strip():
+            raise ValueError("candidate_receipt_id is required for deploy-staging.yml")
+        if request.environment != "staging":
+            raise ValueError("backend deployment only supports staging")
 
     @workflow.update
     def retry(self, request: RetryRequest) -> BackendBatchSnapshot:

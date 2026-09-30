@@ -92,10 +92,13 @@ preview-only를 해제해야 할 때는 `_temporal_orchestrator/.env`의
 통합 브랜치에는 후보를 합칠 때 최신 `develop`을 먼저 반영하므로, 이미 base 또는 통합
 브랜치에 들어간 exact SHA는 다시 merge하지 않습니다.
 
-`ANASA_BACKEND_DEPLOY_WORKFLOW`가 `workflow_dispatch` 방식이면 그 호출부도
-`ref=integration/backend`와 `backend_sha=<integration SHA>`를 전달해야 합니다. 기존
-release-train 입력(`request_id`, `manifest_hash`, Candidate receipt 등)은 해당 배포
-workflow의 계약대로 별도로 채워야 하며, control plane은 값을 추정하지 않습니다.
+`ANASA_BACKEND_DEPLOY_WORKFLOW`는 `workflow_dispatch` 방식으로 호출됩니다. `DEPLOY BACKEND`
+호출에는 `request_id`, `manifest_hash`, `candidate_receipt_id`를 포함한 release-train 입력을
+명시해야 하며, control plane은 값을 추정하지 않습니다. 호출부는 자동으로
+`ref=integration/backend`, `backend_sha=<integration SHA>`, `batch_id=<batch id>`를 전달하고,
+workflow 실행 제목의 request id와 exact SHA를 함께 관찰합니다. FE는 Vercel 연속 배포를
+사용하므로 통합 브랜치 머지 후 별도 배포 게이트를 만들지 않고 기존 배포 관찰 흐름을
+유지합니다.
 
 ## 서비스 확인과 중지
 

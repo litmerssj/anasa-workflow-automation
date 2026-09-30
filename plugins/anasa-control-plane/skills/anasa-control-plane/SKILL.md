@@ -52,13 +52,17 @@ Use the `anasa-temporal` MCP tools for durable session registration and integrat
   `anasa_start_visible_backend_batch`. This only updates the repository's persistent
   integration branch and leaves the batch at `WAIT_DEPLOYMENT`.
 - Deployment confirmation must equal `DEPLOY BACKEND <batch-id>` and calls
-  `anasa_deploy_backend_batch` during the approved deployment window.
+  `anasa_deploy_backend_batch` during the approved deployment window. Supply the frozen
+  `request_id`, `manifest_hash`, and `candidate_receipt_id` (plus any known image or migration
+  hashes); the tool dispatches `deploy-staging.yml` from `integration/backend` at the exact
+  integration SHA.
 - Frontend confirmation must equal `MERGE FRONTEND <batch-id>` and calls
   `anasa_start_visible_frontend_batch`.
 - Never mix `fe_anasa` and `fe_anasa_ord` in one frontend batch.
 - Integration activities use one integration PR and one target-branch merge. Backend deployment is
-  a separate explicit activity against the exact integration SHA. They do not re-run the individual
-  ticket development lifecycle.
+  a separate explicit activity against the exact integration SHA. FE remains on its Vercel
+  continuous deployment path after the integration merge, so it does not add a second deployment
+  gate. They do not re-run the individual ticket development lifecycle.
 
 ## Failure and speed rules
 

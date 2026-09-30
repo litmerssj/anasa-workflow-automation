@@ -287,7 +287,17 @@ class RetryRequest:
 class DeploymentRequest:
     batch_id: str
     requested_by: str
-
+    # deploy-staging.yml is workflow_dispatch-only and requires a frozen
+    # release-train receipt. Keep those inputs attached to the Temporal
+    # update so the exact integration SHA is what GitHub Actions receives.
+    request_id: str = ""
+    manifest_hash: str = ""
+    candidate_receipt_id: str = ""
+    backend_image_digest: str = "none"
+    expected_migration_version: str = "none"
+    expected_stored_procedure_hash: str = "none"
+    expected_schema_contract_hash: str = "none"
+    environment: str = "staging"
 
 @dataclass
 class WorkflowInstruction:
@@ -343,6 +353,7 @@ class BackendBatchInput:
 class BackendBatchDeploymentInput:
     batch: BackendBatchInput
     integration_sha: str
+    deployment_request: DeploymentRequest | None = None
 
 
 @dataclass

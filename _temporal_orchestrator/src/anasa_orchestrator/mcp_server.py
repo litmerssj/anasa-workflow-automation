@@ -258,16 +258,34 @@ async def anasa_start_visible_backend_batch(
 async def anasa_deploy_backend_batch(
     batch_id: str,
     confirmation: str,
+    request_id: str,
+    manifest_hash: str,
+    candidate_receipt_id: str,
+    backend_image_digest: str = "none",
+    expected_migration_version: str = "none",
+    expected_stored_procedure_hash: str = "none",
+    expected_schema_contract_hash: str = "none",
     requested_by: str = "hong-seokju",
 ) -> dict[str, str]:
     """Deploy a previously merged integration branch batch.
 
-    confirmation must equal ``DEPLOY BACKEND <batch_id>``.
+    confirmation must equal ``DEPLOY BACKEND <batch_id>``. The remaining
+    fields are the frozen release-train inputs required by deploy-staging.yml.
     """
     expected = f"DEPLOY BACKEND {batch_id}"
     if confirmation != expected:
         raise ValueError(f"confirmation must equal: {expected}")
-    return await (await _service()).deploy_backend_batch(batch_id, requested_by)
+    return await (await _service()).deploy_backend_batch(
+        batch_id,
+        requested_by,
+        request_id=request_id,
+        manifest_hash=manifest_hash,
+        candidate_receipt_id=candidate_receipt_id,
+        backend_image_digest=backend_image_digest,
+        expected_migration_version=expected_migration_version,
+        expected_stored_procedure_hash=expected_stored_procedure_hash,
+        expected_schema_contract_hash=expected_schema_contract_hash,
+    )
 
 
 @mcp.tool()

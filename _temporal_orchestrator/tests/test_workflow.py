@@ -392,7 +392,13 @@ async def test_backend_batch_signals_each_ticket_after_deployment() -> None:
                 await asyncio.sleep(0.01)
             await batch.execute_update(
                 BackendBatchWorkflow.deploy,
-                DeploymentRequest("batch-1", "tester"),
+                DeploymentRequest(
+                    "batch-1",
+                    "tester",
+                    request_id="release-batch-1",
+                    manifest_hash="sha256:" + "a" * 64,
+                    candidate_receipt_id="candidate-receipt-1",
+                ),
             )
             batch_result = await batch.result()
             receiver_result = await receiver.result()

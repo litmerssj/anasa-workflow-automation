@@ -13,6 +13,7 @@ from .models import (
     BackendBatchInput,
     BackendBatchItem,
     BackendBatchResult,
+    DeploymentRequest,
     MergeResult,
     PrArtifact,
     PreparePrInput,
@@ -363,6 +364,7 @@ class GitHubGateway:
 
     async def deploy_backend_batch(self, input: BackendBatchDeploymentInput) -> BackendBatchResult:
         backend = self._repository_config("be_anasa")
+        self._require_release_scope([item.ticket_id for item in input.batch.items])
         if not input.integration_sha.strip():
             raise ValueError("integration SHA is required for backend deployment")
         await run_command(
@@ -383,9 +385,27 @@ class GitHubGateway:
             raise RuntimeError("integration SHA is not present on the integration branch")
         slug = await self._repository_slug(backend.checkout)
         started = time.perf_counter()
-        deployment_url = await self._wait_for_backend_deployment(
-            slug, input.integration_sha, backend.integration_branch
-        )
+        request = input.deployment_request
+        if request is None:
+            # Keep the low-level compatibility API observable for existing callers;
+            # the service path always supplies the workflow_dispatch contract.
+            deployment_url = await self._wait_for_backend_deployment(
+                slug, input.integration_sha, backend.integration_branch
+            )
+        else:
+            await self._dispatch_backend_deployment(
+                slug,
+                backend.integration_branch,
+                input.integration_sha,
+                input.batch.batch_id,
+                request,
+            )
+            deployment_url = await self._wait_for_backend_deployment(
+                slug,
+                input.integration_sha,
+                backend.integration_branch,
+                request_id=request.request_id,
+            )
         return BackendBatchResult(
             batch_id=input.batch.batch_id,
             deployed_sha=input.integration_sha,
@@ -692,7 +712,12 @@ class GitHubGateway:
         return payload["mergeCommit"]["oid"]
 
     async def _wait_for_backend_deployment(
-        self, slug: str, deployed_sha: str, branch: str = "develop"
+        self,
+        slug: str,
+        deployed_sha: str,
+        branch: str = "develop",
+        *,
+        request_id: str = "",
     ) -> str:
         for _ in range(60):
             listed = await run_command(
@@ -709,13 +734,15 @@ class GitHubGateway:
                     "--limit",
                     "10",
                     "--json",
-                    "databaseId,status,conclusion,headSha,url",
+                    "databaseId,status,conclusion,headSha,url,displayTitle",
                 ],
                 check=False,
             )
             if listed.returncode == 0:
                 for run in json.loads(listed.stdout):
                     if run.get("headSha") != deployed_sha:
+                        continue
+                    if request_id and request_id not in (run.get("displayTitle") or ""):
                         continue
                     if run.get("status") == "completed":
                         if run.get("conclusion") != "success":
@@ -742,6 +769,54 @@ class GitHubGateway:
                         return run.get("url") or ""
             await asyncio.sleep(2)
         raise RuntimeError("backend deployment run for the exact batch merge SHA did not complete")
+
+    async def _dispatch_backend_deployment(
+        self,
+        slug: str,
+        integration_branch: str,
+        integration_sha: str,
+        batch_id: str,
+        request: DeploymentRequest,
+    ) -> None:
+        """Start deploy-staging.yml with the frozen release-train inputs."""
+        required = {
+            "request_id": request.request_id,
+            "manifest_hash": request.manifest_hash,
+            "candidate_receipt_id": request.candidate_receipt_id,
+        }
+        missing = [name for name, value in required.items() if not value.strip()]
+        if missing:
+            raise ValueError(
+                "deploy-staging.yml dispatch is missing required inputs: " + ", ".join(missing)
+            )
+        if request.environment != "staging":
+            raise ValueError("backend deployment only supports staging")
+        fields = {
+            "request_id": request.request_id,
+            "environment": request.environment,
+            "mode": "deploy",
+            "backend_sha": integration_sha,
+            "backend_image_digest": request.backend_image_digest,
+            "manifest_hash": request.manifest_hash,
+            "batch_id": batch_id,
+            "candidate_receipt_id": request.candidate_receipt_id,
+            "expected_migration_version": request.expected_migration_version,
+            "expected_stored_procedure_hash": request.expected_stored_procedure_hash,
+            "expected_schema_contract_hash": request.expected_schema_contract_hash,
+        }
+        command = [
+            "gh",
+            "workflow",
+            "run",
+            self._settings.backend_deploy_workflow,
+            "--repo",
+            slug,
+            "--ref",
+            integration_branch,
+        ]
+        for name, value in fields.items():
+            command.extend(["--field", f"{name}={value}"])
+        await run_command(command)
 
     async def _wait_for_frontend_deployment(self, slug: str, deployed_sha: str) -> str:
         for _ in range(90):

@@ -16,6 +16,7 @@ from anasa_orchestrator.models import (
     BackendBatchDeploymentInput,
     BackendBatchInput,
     BackendBatchItem,
+    DeploymentRequest,
     PrArtifact,
 )
 
@@ -205,6 +206,66 @@ async def test_backend_deployment_waits_on_integration_branch(
         "sha": "integration-head",
         "branch": "integration/backend",
     }
+    assert result.deployed_sha == "integration-head"
+
+
+@pytest.mark.asyncio
+async def test_backend_deployment_dispatches_staging_workflow_from_integration_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gateway = backend_gateway(tmp_path)
+    captured: dict[str, object] = {}
+
+    async def fake_run_command(args, **kwargs):
+        command = list(args)
+        if command[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return CommandResult("", "", 0)
+        if command[:3] == ["gh", "workflow", "run"]:
+            captured["command"] = command
+        return CommandResult("", "", 0)
+
+    async def fake_wait(slug: str, sha: str, branch: str, *, request_id: str = "") -> str:
+        captured["wait"] = (slug, sha, branch, request_id)
+        return "https://github.test/actions/runs/2"
+
+    monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
+    monkeypatch.setattr(gateway, "_repository_slug", lambda _: async_value("litmers-dev/be_anasa"))
+    monkeypatch.setattr(gateway, "_wait_for_backend_deployment", fake_wait)
+
+    result = await gateway.deploy_backend_batch(
+        BackendBatchDeploymentInput(
+            backend_batch(),
+            "integration-head",
+            DeploymentRequest(
+                "batch-1",
+                "tester",
+                request_id="release-batch-1",
+                manifest_hash="sha256:" + "b" * 64,
+                candidate_receipt_id="candidate-receipt-1",
+            ),
+        )
+    )
+
+    command = captured["command"]
+    assert command[:8] == [
+        "gh",
+        "workflow",
+        "run",
+        "deploy-staging.yml",
+        "--repo",
+        "litmers-dev/be_anasa",
+        "--ref",
+        "integration/backend",
+    ]
+    assert "--field" in command
+    assert "backend_sha=integration-head" in command
+    assert "request_id=release-batch-1" in command
+    assert captured["wait"] == (
+        "litmers-dev/be_anasa",
+        "integration-head",
+        "integration/backend",
+        "release-batch-1",
+    )
     assert result.deployed_sha == "integration-head"
 
 

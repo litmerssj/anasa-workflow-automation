@@ -425,15 +425,44 @@ class OrchestratorService:
         )
         return {"batch_id": batch_id, "workflow_id": handle.id}
 
-    async def deploy_backend_batch(self, batch_id: str, requested_by: str) -> dict[str, str]:
+    async def deploy_backend_batch(
+        self,
+        batch_id: str,
+        requested_by: str,
+        *,
+        request_id: str,
+        manifest_hash: str,
+        candidate_receipt_id: str,
+        backend_image_digest: str = "none",
+        expected_migration_version: str = "none",
+        expected_stored_procedure_hash: str = "none",
+        expected_schema_contract_hash: str = "none",
+        environment: str = "staging",
+    ) -> dict[str, str]:
         if not batch_id.strip() or not requested_by.strip():
             raise ValueError("batch_id and requested_by are required")
+        if not request_id.strip() or not manifest_hash.strip() or not candidate_receipt_id.strip():
+            raise ValueError(
+                "request_id, manifest_hash, and candidate_receipt_id are required "
+                "by deploy-staging.yml"
+            )
         handle = self._client.get_workflow_handle_for(
             BackendBatchWorkflow.run, f"anasa-backend-batch-{batch_id}"
         )
         snapshot = await handle.execute_update(
             BackendBatchWorkflow.deploy,
-            DeploymentRequest(batch_id=batch_id, requested_by=requested_by),
+            DeploymentRequest(
+                batch_id=batch_id,
+                requested_by=requested_by,
+                request_id=request_id,
+                manifest_hash=manifest_hash,
+                candidate_receipt_id=candidate_receipt_id,
+                backend_image_digest=backend_image_digest,
+                expected_migration_version=expected_migration_version,
+                expected_stored_procedure_hash=expected_stored_procedure_hash,
+                expected_schema_contract_hash=expected_schema_contract_hash,
+                environment=environment,
+            ),
         )
         return {"batch_id": batch_id, "state": snapshot.current_state}
 
