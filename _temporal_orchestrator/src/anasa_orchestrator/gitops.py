@@ -791,6 +791,31 @@ class GitHubGateway:
             )
         if request.environment != "staging":
             raise ValueError("backend deployment only supports staging")
+        existing = await run_command(
+            [
+                "gh",
+                "run",
+                "list",
+                "--repo",
+                slug,
+                "--workflow",
+                self._settings.backend_deploy_workflow,
+                "--branch",
+                integration_branch,
+                "--limit",
+                "20",
+                "--json",
+                "status,headSha,displayTitle",
+            ],
+            check=False,
+        )
+        if existing.returncode == 0:
+            for run in json.loads(existing.stdout or "[]"):
+                if (
+                    run.get("headSha") == integration_sha
+                    and request.request_id in (run.get("displayTitle") or "")
+                ):
+                    return
         fields = {
             "request_id": request.request_id,
             "environment": request.environment,
