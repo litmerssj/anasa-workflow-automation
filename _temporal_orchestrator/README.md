@@ -99,7 +99,10 @@ preview-only를 해제해야 할 때는 `_temporal_orchestrator/.env`의
 호출에는 `request_id`, `manifest_hash`, `candidate_receipt_id`를 포함한 release-train 입력을
 명시해야 하며, control plane은 값을 추정하지 않습니다. 호출부는 자동으로
 `ref=integration/backend`, `backend_sha=<integration SHA>`, `batch_id=<batch id>`를 전달하고,
-workflow 실행 제목의 request id와 exact SHA를 함께 관찰합니다. FE는 Vercel 연속 배포를
+workflow 실행 제목의 request id와 exact SHA를 함께 관찰합니다. 배포 직전에 integration
+브랜치가 더 진행됐거나 `deploy-staging.yml`이 `source_branch` 계약을 포함하지 않으면
+배포를 중단합니다. 현재 통합 SHA를 확정하고 필요한 workflow 변경을 integration 브랜치에
+먼저 병합해야 합니다. FE는 Vercel 연속 배포를
 사용하므로 통합 브랜치 머지 후 별도 배포 게이트를 만들지 않고 기존 배포 관찰 흐름을
 유지합니다.
 

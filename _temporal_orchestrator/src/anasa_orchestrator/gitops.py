@@ -472,6 +472,16 @@ class GitHubGateway:
         )
         if exact.returncode != 0:
             raise RuntimeError("integration SHA is not present on the integration branch")
+        current_tip = (
+            await run_command(
+                ["git", "rev-parse", self._integration_ref(backend)], cwd=backend.checkout
+            )
+        ).stdout.strip()
+        if input.integration_sha != current_tip:
+            raise RuntimeError(
+                "integration SHA is no longer the integration branch tip; "
+                "deploy the current approved batch or merge the pending tickets into one batch"
+            )
         slug = await self._repository_slug(backend.checkout)
         started = time.perf_counter()
         request = input.deployment_request
@@ -482,7 +492,7 @@ class GitHubGateway:
                 slug, input.integration_sha, backend.integration_branch
             )
         else:
-            await self._dispatch_backend_deployment(
+            previous_run_id = await self._dispatch_backend_deployment(
                 slug,
                 backend.integration_branch,
                 input.integration_sha,
@@ -494,6 +504,7 @@ class GitHubGateway:
                 input.integration_sha,
                 backend.integration_branch,
                 request_id=request.request_id,
+                after_run_id=previous_run_id,
             )
         return BackendBatchResult(
             batch_id=input.batch.batch_id,
@@ -837,6 +848,7 @@ class GitHubGateway:
         branch: str = "develop",
         *,
         request_id: str = "",
+        after_run_id: int | None = None,
     ) -> str:
         for _ in range(60):
             listed = await run_command(
@@ -858,10 +870,17 @@ class GitHubGateway:
                 check=False,
             )
             if listed.returncode == 0:
-                for run in json.loads(listed.stdout):
+                runs = sorted(
+                    json.loads(listed.stdout),
+                    key=lambda run: run.get("databaseId") or 0,
+                    reverse=True,
+                )
+                for run in runs:
                     if run.get("headSha") != deployed_sha:
                         continue
                     if request_id and request_id not in (run.get("displayTitle") or ""):
+                        continue
+                    if after_run_id is not None and (run.get("databaseId") or 0) <= after_run_id:
                         continue
                     if run.get("status") == "completed":
                         if run.get("conclusion") != "success":
@@ -896,7 +915,7 @@ class GitHubGateway:
         integration_sha: str,
         batch_id: str,
         request: DeploymentRequest,
-    ) -> None:
+    ) -> int | None:
         """Start deploy-staging.yml with frozen inputs from the integration branch."""
         required = {
             "request_id": request.request_id,
@@ -924,18 +943,20 @@ class GitHubGateway:
                 "--limit",
                 "20",
                 "--json",
-                "status,conclusion,headSha,displayTitle",
-                ],
+                "databaseId,status,conclusion,headSha,displayTitle",
+            ],
             check=False,
         )
+        previous_run_id = 0
         if existing.returncode == 0:
             for run in json.loads(existing.stdout or "[]"):
                 if (
                     run.get("headSha") == integration_sha
                     and request.request_id in (run.get("displayTitle") or "")
                 ):
+                    previous_run_id = max(previous_run_id, run.get("databaseId") or 0)
                     if run.get("status") != "completed" or run.get("conclusion") == "success":
-                        return
+                        return None
         fields = {
             "request_id": request.request_id,
             "environment": request.environment,
@@ -963,6 +984,7 @@ class GitHubGateway:
         for name, value in fields.items():
             command.extend(["--field", f"{name}={value}"])
         await run_command(command)
+        return previous_run_id
 
     async def _wait_for_frontend_deployment(self, slug: str, deployed_sha: str) -> str:
         for _ in range(90):

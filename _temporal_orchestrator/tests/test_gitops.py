@@ -226,6 +226,8 @@ async def test_backend_deployment_waits_on_integration_branch(
                 "",
                 0,
             )
+        if command[:2] == ["git", "rev-parse"]:
+            return CommandResult("integration-head\n", "", 0)
         if command[:3] == ["git", "merge-base", "--is-ancestor"]:
             assert command[-1] == "origin/integration/backend"
         return CommandResult("", "", 0)
@@ -266,14 +268,18 @@ async def test_backend_deployment_dispatches_staging_workflow_from_integration_b
                 "",
                 0,
             )
+        if command[:2] == ["git", "rev-parse"]:
+            return CommandResult("integration-head\n", "", 0)
         if command[:3] == ["git", "merge-base", "--is-ancestor"]:
             return CommandResult("", "", 0)
         if command[:3] == ["gh", "workflow", "run"]:
             captured["command"] = command
         return CommandResult("", "", 0)
 
-    async def fake_wait(slug: str, sha: str, branch: str, *, request_id: str = "") -> str:
-        captured["wait"] = (slug, sha, branch, request_id)
+    async def fake_wait(
+        slug: str, sha: str, branch: str, *, request_id: str = "", after_run_id: int | None = None
+    ) -> str:
+        captured["wait"] = (slug, sha, branch, request_id, after_run_id)
         return "https://github.test/actions/runs/2"
 
     monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
@@ -314,6 +320,7 @@ async def test_backend_deployment_dispatches_staging_workflow_from_integration_b
         "integration-head",
         "integration/backend",
         "release-batch-1",
+        0,
     )
     assert result.deployed_sha == "integration-head"
 
@@ -334,6 +341,8 @@ async def test_backend_deployment_retries_after_failed_dispatch(
                 "",
                 0,
             )
+        if command[:2] == ["git", "rev-parse"]:
+            return CommandResult("integration-head\n", "", 0)
         if command[:3] == ["git", "merge-base", "--is-ancestor"]:
             return CommandResult("", "", 0)
         if command[:3] == ["gh", "run", "list"]:
@@ -343,6 +352,7 @@ async def test_backend_deployment_retries_after_failed_dispatch(
                         {
                             "status": "completed",
                             "conclusion": "failure",
+                            "databaseId": 12,
                             "headSha": "integration-head",
                             "displayTitle": "be-staging-deploy deploy release-batch-1",
                         }
@@ -355,7 +365,10 @@ async def test_backend_deployment_retries_after_failed_dispatch(
             captured["command"] = command
         return CommandResult("", "", 0)
 
-    async def fake_wait(slug: str, sha: str, branch: str, *, request_id: str = "") -> str:
+    async def fake_wait(
+        slug: str, sha: str, branch: str, *, request_id: str = "", after_run_id: int | None = None
+    ) -> str:
+        captured["after_run_id"] = after_run_id
         return "https://github.test/actions/runs/3"
 
     monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
@@ -377,6 +390,7 @@ async def test_backend_deployment_retries_after_failed_dispatch(
     )
 
     assert "command" in captured
+    assert captured["after_run_id"] == 12
 
 
 @pytest.mark.asyncio
@@ -396,6 +410,58 @@ async def test_backend_deployment_rejects_old_integration_workflow(
         await gateway._require_integration_deploy_workflow(
             gateway._repository_config("be_anasa")
         )
+
+
+@pytest.mark.asyncio
+async def test_backend_deployment_wait_ignores_failed_run_before_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gateway = backend_gateway(tmp_path)
+    calls = 0
+
+    async def fake_run_command(args, **kwargs):
+        nonlocal calls
+        if list(args)[:3] == ["gh", "run", "list"]:
+            calls += 1
+            runs = [
+                {
+                    "databaseId": 12,
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "headSha": "integration-head",
+                    "displayTitle": "be-staging-deploy deploy release-batch-1",
+                }
+            ]
+            if calls > 1:
+                runs.append(
+                    {
+                        "databaseId": 13,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "headSha": "integration-head",
+                        "displayTitle": "be-staging-deploy deploy release-batch-1",
+                        "url": "https://github.test/actions/runs/13",
+                    }
+                )
+            return CommandResult(json.dumps(runs), "", 0)
+        return CommandResult("", "", 0)
+
+    async def fake_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
+    monkeypatch.setattr("anasa_orchestrator.gitops.asyncio.sleep", fake_sleep)
+
+    url = await gateway._wait_for_backend_deployment(
+        "litmers-dev/be_anasa",
+        "integration-head",
+        "integration/backend",
+        request_id="release-batch-1",
+        after_run_id=12,
+    )
+
+    assert calls == 2
+    assert url == "https://github.test/actions/runs/13"
 
 
 @pytest.mark.asyncio

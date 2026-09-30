@@ -64,7 +64,8 @@ Use the `anasa-temporal` MCP tools for durable session registration and integrat
   second integration PR and does not automatically merge the latest `develop`. Backend deployment
   rejects a candidate whose `develop` ancestry is not already present in `integration/backend`; the
   development branch must be rebased onto the integration branch and re-approved. Backend deployment
-  is a separate explicit activity against the exact integration SHA. FE remains on its Vercel
+  is a separate explicit activity against the exact integration tip SHA and requires the integration
+  branch's current `deploy-staging.yml` to carry the `source_branch` contract. FE remains on its Vercel
   continuous deployment path after the integration merge, so it does not add a second deployment
   gate. They do not re-run the individual ticket development lifecycle.
 
