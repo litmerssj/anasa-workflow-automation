@@ -133,47 +133,81 @@ async def test_backend_batch_targets_persistent_integration_branch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     gateway = backend_gateway(tmp_path)
-    captured: dict[str, object] = {}
+    commands: list[list[str]] = []
 
     async def fake_run_command(args, **kwargs):
         command = list(args)
+        commands.append(command)
         if command[:3] == ["gh", "pr", "view"]:
             return CommandResult(
                 json.dumps({"headRefOid": "approved-head", "state": "OPEN"}), "", 0
             )
+        if command[:2] == ["git", "merge-base"] and len(command) == 4:
+            return CommandResult("develop-base\n", "", 0)
+        if command[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return CommandResult("", "", 0 if command[3] == "develop-base" else 1)
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return CommandResult("integration-head\n", "", 0)
         return CommandResult("", "", 0)
-
-    async def fake_create(*args, **kwargs) -> PrArtifact:
-        captured["base_branch"] = args[2]
-        captured["base_ref"] = args[3]
-        captured["refresh_branch"] = kwargs["refresh_branch"]
-        return PrArtifact(
-            repository="be_anasa",
-            pr_url="https://github.com/litmers-dev/be_anasa/pull/999",
-            head_sha="integration-head",
-            branch_name="codex/backend-batch-batch-1",
-            base_branch="integration/backend",
-            backend_change=True,
-            has_changes=True,
-        )
 
     monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
     monkeypatch.setattr(
         gateway, "_ensure_integration_branch", lambda _: async_value("origin/integration/backend")
     )
-    monkeypatch.setattr(gateway, "_repository_slug", lambda _: async_value("litmers-dev/be_anasa"))
-    monkeypatch.setattr(gateway, "_create_repository_batch_pr", fake_create)
-    monkeypatch.setattr(gateway, "_merge_pr", lambda artifact: async_value(artifact.head_sha))
+    monkeypatch.setattr(
+        gateway,
+        "_prepare_integration_worktree",
+        lambda *args: async_value(tmp_path / "integration"),
+    )
 
     result = await gateway.merge_backend_batch(backend_batch())
 
-    assert captured == {
-        "base_branch": "integration/backend",
-        "base_ref": "origin/integration/backend",
-        "refresh_branch": "develop",
-    }
+    assert ["git", "merge", "--no-ff", "--no-edit", "approved-head"] in commands
+    assert ["git", "push", "origin", "HEAD:refs/heads/integration/backend"] in commands
+    assert not any(command[:2] == ["gh", "pr"] and "create" in command for command in commands)
+    assert not any(
+        command[:2] == ["git", "merge"] and "origin/develop" in command
+        for command in commands
+    )
     assert result.integration_branch == "integration/backend"
     assert result.integration_sha == "integration-head"
+
+
+@pytest.mark.asyncio
+async def test_backend_batch_rejects_unintegrated_develop_ancestry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gateway = backend_gateway(tmp_path)
+    commands: list[list[str]] = []
+
+    async def fake_run_command(args, **kwargs):
+        command = list(args)
+        commands.append(command)
+        if command[:3] == ["gh", "pr", "view"]:
+            return CommandResult(
+                json.dumps({"headRefOid": "approved-head", "state": "OPEN"}), "", 0
+            )
+        if command[:2] == ["git", "merge-base"] and len(command) == 4:
+            return CommandResult("new-develop-base\n", "", 0)
+        if command[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return CommandResult("", "", 1)
+        return CommandResult("", "", 0)
+
+    monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
+    monkeypatch.setattr(
+        gateway, "_ensure_integration_branch", lambda _: async_value("origin/integration/backend")
+    )
+    monkeypatch.setattr(
+        gateway,
+        "_prepare_integration_worktree",
+        lambda *args: async_value(tmp_path / "integration"),
+    )
+
+    with pytest.raises(RuntimeError, match="develop history outside integration/backend"):
+        await gateway.merge_backend_batch(backend_batch())
+
+    assert not any(command[:2] == ["git", "merge"] for command in commands)
+    assert not any(command[:2] == ["git", "push"] for command in commands)
 
 
 @pytest.mark.asyncio

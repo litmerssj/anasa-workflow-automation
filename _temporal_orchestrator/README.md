@@ -89,8 +89,11 @@ preview-only를 해제해야 할 때는 `_temporal_orchestrator/.env`의
 백엔드 배치는 리뷰된 후보를 `integration/backend`에 순서대로 합친 뒤
 `WAIT_DEPLOYMENT`에서 멈춥니다. 배포 창이 열렸을 때 같은 batch id로 별도
 `DEPLOY BACKEND <batch-id>`를 호출해야 staging 배포를 관찰하고 티켓을 QA 단계로 넘깁니다.
-통합 브랜치에는 후보를 합칠 때 최신 `develop`을 먼저 반영하므로, 이미 base 또는 통합
-브랜치에 들어간 exact SHA는 다시 merge하지 않습니다.
+승인된 개발 PR의 exact head를 통합 브랜치에 직접 병합합니다. 중간 배치 조립 브랜치나
+추가 통합 PR은 만들지 않습니다. `develop`의 최신 변경을 자동으로 섞지 않으며, 이미
+통합 브랜치에 들어간 exact SHA는 다시 merge하지 않습니다.
+개발 브랜치의 기반 `develop` 커밋이 아직 통합 브랜치에 없으면 병합을 중단합니다. 해당
+브랜치를 통합 브랜치 기준으로 다시 만들고 변경된 SHA에 대한 리뷰 승인을 받아야 합니다.
 
 `ANASA_BACKEND_DEPLOY_WORKFLOW`는 `workflow_dispatch` 방식으로 호출됩니다. `DEPLOY BACKEND`
 호출에는 `request_id`, `manifest_hash`, `candidate_receipt_id`를 포함한 release-train 입력을

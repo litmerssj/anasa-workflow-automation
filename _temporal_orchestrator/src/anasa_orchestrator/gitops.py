@@ -276,11 +276,11 @@ class GitHubGateway:
         return MergeResult(merged_shas=merged, deployment_urls=urls)
 
     async def merge_backend_batch(self, input: BackendBatchInput) -> BackendBatchResult:
-        """Assemble and merge one ordered batch into the repository integration branch.
+        """Merge approved development PR heads directly into the integration branch.
 
-        The integration PR is deliberately based on the persistent integration branch. This
-        keeps merge and deployment separate: merging a reviewed batch updates the queue branch,
-        while deployment is requested later for the resulting integration SHA.
+        The ticket PRs remain the review boundary. Once their exact heads are approved, this
+        activity applies those heads to ``integration/backend`` in the frozen ticket order and
+        pushes the resulting branch SHA. There is no second batch assembly branch or PR.
         """
         started = time.perf_counter()
         phase_durations: dict[str, float] = {}
@@ -295,7 +295,6 @@ class GitHubGateway:
             raise RuntimeError("backend batch contains no backend PR")
         backend = self._repository_config("be_anasa")
         integration_ref = await self._ensure_integration_branch(backend)
-        await run_command(["git", "fetch", "origin", backend.base_branch], cwd=backend.checkout)
         approved_heads: dict[str, str] = {}
 
         async def validate_item(item: BackendBatchItem) -> tuple[str, str]:
@@ -334,23 +333,82 @@ class GitHubGateway:
 
         approved_heads.update(await asyncio.gather(*(validate_item(item) for item in input.items)))
         phase_durations["validate_candidates"] = time.perf_counter() - started
-        slug = await self._repository_slug(backend.checkout)
-        assemble_started = time.perf_counter()
-        batch_artifact = await self._create_repository_batch_pr(
-            input,
-            backend.checkout,
-            backend.integration_branch,
-            integration_ref,
-            slug,
-            repository_name="be_anasa",
-            branch_prefix="backend-batch",
-            root_name="backend-batches",
-            refresh_branch=backend.base_branch,
+        integration_worktree = await self._prepare_integration_worktree(
+            backend, integration_ref, input.batch_id
         )
-        phase_durations["assemble_integration_pr"] = time.perf_counter() - assemble_started
+        branch_names = list(
+            dict.fromkeys(
+                artifact.branch_name
+                for item in input.items
+                for artifact in item.artifacts
+                if artifact.repository == "be_anasa" and artifact.has_changes
+            )
+        )
+        if branch_names:
+            await run_command(
+                ["git", "fetch", "--no-tags", "origin", *branch_names],
+                cwd=integration_worktree,
+            )
+        # A normal merge also brings in the branch's develop ancestors. Reject a
+        # candidate based on develop commits that are not already in integration.
+        for item in input.items:
+            artifact = next(
+                artifact
+                for artifact in item.artifacts
+                if artifact.repository == "be_anasa" and artifact.has_changes
+            )
+            develop_base = (
+                await run_command(
+                    ["git", "merge-base", artifact.head_sha, backend.base_ref],
+                    cwd=integration_worktree,
+                )
+            ).stdout.strip()
+            base_integrated = await run_command(
+                ["git", "merge-base", "--is-ancestor", develop_base, "HEAD"],
+                cwd=integration_worktree,
+                check=False,
+            )
+            if base_integrated.returncode != 0:
+                raise RuntimeError(
+                    "backend PR contains develop history outside integration/backend "
+                    f"for {item.ticket_id}; rebase onto the integration branch and renew "
+                    "exact-SHA approval"
+                )
         merge_started = time.perf_counter()
-        integration_sha = await self._merge_pr(batch_artifact)
-        phase_durations["merge_integration_pr"] = time.perf_counter() - merge_started
+        merged_count = 0
+        for item in input.items:
+            artifact = next(
+                artifact
+                for artifact in item.artifacts
+                if artifact.repository == "be_anasa" and artifact.has_changes
+            )
+            already_integrated = await run_command(
+                ["git", "merge-base", "--is-ancestor", artifact.head_sha, "HEAD"],
+                cwd=integration_worktree,
+                check=False,
+            )
+            if already_integrated.returncode == 0:
+                continue
+            merge = await run_command(
+                ["git", "merge", "--no-ff", "--no-edit", artifact.head_sha],
+                cwd=integration_worktree,
+                check=False,
+            )
+            if merge.returncode != 0:
+                await run_command(
+                    ["git", "merge", "--abort"], cwd=integration_worktree, check=False
+                )
+                raise CommandError(["git", "merge", "--no-ff", artifact.head_sha], merge)
+            merged_count += 1
+        integration_sha = (
+            await run_command(["git", "rev-parse", "HEAD"], cwd=integration_worktree)
+        ).stdout.strip()
+        if merged_count:
+            await run_command(
+                ["git", "push", "origin", f"HEAD:refs/heads/{backend.integration_branch}"],
+                cwd=integration_worktree,
+            )
+        phase_durations["merge_integration_branch"] = time.perf_counter() - merge_started
         phase_durations["total"] = time.perf_counter() - started
         return BackendBatchResult(
             batch_id=input.batch_id,
@@ -361,6 +419,36 @@ class GitHubGateway:
             integration_branch=backend.integration_branch,
             integration_sha=integration_sha,
         )
+
+    async def _prepare_integration_worktree(
+        self, repository: RepositoryConfig, integration_ref: str, batch_id: str
+    ) -> Path:
+        """Use a detached worktree for direct integration, without a batch branch."""
+        safe_batch = re.sub(r"[^a-zA-Z0-9-]+", "-", batch_id).strip("-")
+        if not safe_batch:
+            raise ValueError("batch_id has no safe worktree characters")
+        worktree = (
+            self._settings.workspace_root / "integration-worktrees" / safe_batch / repository.name
+        )
+        worktree.parent.mkdir(parents=True, exist_ok=True)
+        if not worktree.exists():
+            await run_command(
+                ["git", "worktree", "add", "--detach", str(worktree), integration_ref],
+                cwd=repository.checkout,
+            )
+        top = (
+            await run_command(["git", "rev-parse", "--show-toplevel"], cwd=worktree)
+        ).stdout.strip()
+        if Path(top).resolve() != worktree.resolve():
+            raise RuntimeError(f"integration worktree path mismatch: {worktree}")
+        dirty = (
+            await run_command(["git", "status", "--porcelain"], cwd=worktree)
+        ).stdout.strip()
+        if dirty:
+            raise RuntimeError(f"integration worktree is dirty: {worktree}")
+        # A code-free retry replays the frozen approved heads from the current remote tip.
+        await run_command(["git", "checkout", "--detach", integration_ref], cwd=worktree)
+        return worktree
 
     async def deploy_backend_batch(self, input: BackendBatchDeploymentInput) -> BackendBatchResult:
         backend = self._repository_config("be_anasa")
@@ -778,7 +866,7 @@ class GitHubGateway:
         batch_id: str,
         request: DeploymentRequest,
     ) -> None:
-        """Start deploy-staging.yml with the frozen release-train inputs."""
+        """Start deploy-staging.yml with frozen inputs from the integration branch."""
         required = {
             "request_id": request.request_id,
             "manifest_hash": request.manifest_hash,

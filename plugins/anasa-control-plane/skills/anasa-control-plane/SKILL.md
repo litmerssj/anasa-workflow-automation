@@ -59,8 +59,12 @@ Use the `anasa-temporal` MCP tools for durable session registration and integrat
 - Frontend confirmation must equal `MERGE FRONTEND <batch-id>` and calls
   `anasa_start_visible_frontend_batch`.
 - Never mix `fe_anasa` and `fe_anasa_ord` in one frontend batch.
-- Integration activities use one integration PR and one target-branch merge. Backend deployment is
-  a separate explicit activity against the exact integration SHA. FE remains on its Vercel
+- Backend integration merges each approved development PR head directly into
+  `integration/backend` in the frozen ticket order. It creates no batch assembly branch or
+  second integration PR and does not automatically merge the latest `develop`. Backend deployment
+  rejects a candidate whose `develop` ancestry is not already present in `integration/backend`; the
+  development branch must be rebased onto the integration branch and re-approved. Backend deployment
+  is a separate explicit activity against the exact integration SHA. FE remains on its Vercel
   continuous deployment path after the integration merge, so it does not add a second deployment
   gate. They do not re-run the individual ticket development lifecycle.
 
@@ -71,7 +75,7 @@ Use the `anasa-temporal` MCP tools for durable session registration and integrat
   explicit retry tool after reading its failure.
 - Deployment database commands retry only transient connectivity failures. Deterministic migration,
   contract, or data errors fail after the first attempt.
-- Batch reports include phase durations for candidate validation, integration assembly, merge, and
+- Batch reports include phase durations for candidate validation, direct integration merge, and
   deployment wait.
 - Do not infer exact-SHA, backend deployment, frontend main, fixture, qaEvidence, or data-mutation
   approval.
