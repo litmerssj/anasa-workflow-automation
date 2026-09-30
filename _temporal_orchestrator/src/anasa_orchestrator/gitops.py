@@ -458,6 +458,7 @@ class GitHubGateway:
         await run_command(
             ["git", "fetch", "origin", backend.integration_branch], cwd=backend.checkout
         )
+        await self._require_integration_deploy_workflow(backend)
         exact = await run_command(
             [
                 "git",
@@ -508,6 +509,36 @@ class GitHubGateway:
             integration_branch=backend.integration_branch,
             integration_sha=input.integration_sha,
         )
+
+    async def _require_integration_deploy_workflow(self, repository: RepositoryConfig) -> None:
+        """Ensure the branch used for workflow_dispatch has the integration contract."""
+        workflow = await run_command(
+            [
+                "git",
+                "show",
+                f"{self._integration_ref(repository)}:.github/workflows/deploy-staging.yml",
+            ],
+            cwd=repository.checkout,
+            check=False,
+        )
+        if workflow.returncode != 0:
+            raise RuntimeError(
+                f"{repository.integration_branch} does not contain deploy-staging.yml; "
+                "merge the reviewed deployment workflow change before deployment"
+            )
+        required_markers = (
+            "source_branch:",
+            "SOURCE_BRANCH: ${{ inputs.source_branch }}",
+            "BRANCH=${{ env.SOURCE_BRANCH }}",
+        )
+        missing = [marker for marker in required_markers if marker not in workflow.stdout]
+        if missing:
+            raise RuntimeError(
+                f"{repository.integration_branch} has an outdated deploy-staging.yml; "
+                "merge the reviewed deployment workflow change before deployment (missing: "
+                + ", ".join(missing)
+                + ")"
+            )
 
     async def merge_and_deploy_backend(self, input: BackendBatchInput) -> BackendBatchResult:
         """Compatibility wrapper for callers using the pre-5-1 one-step API."""
@@ -893,8 +924,8 @@ class GitHubGateway:
                 "--limit",
                 "20",
                 "--json",
-                "status,headSha,displayTitle",
-            ],
+                "status,conclusion,headSha,displayTitle",
+                ],
             check=False,
         )
         if existing.returncode == 0:
@@ -903,7 +934,8 @@ class GitHubGateway:
                     run.get("headSha") == integration_sha
                     and request.request_id in (run.get("displayTitle") or "")
                 ):
-                    return
+                    if run.get("status") != "completed" or run.get("conclusion") == "success":
+                        return
         fields = {
             "request_id": request.request_id,
             "environment": request.environment,

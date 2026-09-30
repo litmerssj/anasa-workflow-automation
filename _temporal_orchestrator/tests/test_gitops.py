@@ -219,6 +219,13 @@ async def test_backend_deployment_waits_on_integration_branch(
 
     async def fake_run_command(args, **kwargs):
         command = list(args)
+        if command[:2] == ["git", "show"]:
+            return CommandResult(
+                "source_branch:\nSOURCE_BRANCH: ${{ inputs.source_branch }}\n"
+                "BRANCH=${{ env.SOURCE_BRANCH }}\n",
+                "",
+                0,
+            )
         if command[:3] == ["git", "merge-base", "--is-ancestor"]:
             assert command[-1] == "origin/integration/backend"
         return CommandResult("", "", 0)
@@ -252,6 +259,13 @@ async def test_backend_deployment_dispatches_staging_workflow_from_integration_b
 
     async def fake_run_command(args, **kwargs):
         command = list(args)
+        if command[:2] == ["git", "show"]:
+            return CommandResult(
+                "source_branch:\nSOURCE_BRANCH: ${{ inputs.source_branch }}\n"
+                "BRANCH=${{ env.SOURCE_BRANCH }}\n",
+                "",
+                0,
+            )
         if command[:3] == ["git", "merge-base", "--is-ancestor"]:
             return CommandResult("", "", 0)
         if command[:3] == ["gh", "workflow", "run"]:
@@ -302,6 +316,86 @@ async def test_backend_deployment_dispatches_staging_workflow_from_integration_b
         "release-batch-1",
     )
     assert result.deployed_sha == "integration-head"
+
+
+@pytest.mark.asyncio
+async def test_backend_deployment_retries_after_failed_dispatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gateway = backend_gateway(tmp_path)
+    captured: dict[str, object] = {}
+
+    async def fake_run_command(args, **kwargs):
+        command = list(args)
+        if command[:2] == ["git", "show"]:
+            return CommandResult(
+                "source_branch:\nSOURCE_BRANCH: ${{ inputs.source_branch }}\n"
+                "BRANCH=${{ env.SOURCE_BRANCH }}\n",
+                "",
+                0,
+            )
+        if command[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return CommandResult("", "", 0)
+        if command[:3] == ["gh", "run", "list"]:
+            return CommandResult(
+                json.dumps(
+                    [
+                        {
+                            "status": "completed",
+                            "conclusion": "failure",
+                            "headSha": "integration-head",
+                            "displayTitle": "be-staging-deploy deploy release-batch-1",
+                        }
+                    ]
+                ),
+                "",
+                0,
+            )
+        if command[:3] == ["gh", "workflow", "run"]:
+            captured["command"] = command
+        return CommandResult("", "", 0)
+
+    async def fake_wait(slug: str, sha: str, branch: str, *, request_id: str = "") -> str:
+        return "https://github.test/actions/runs/3"
+
+    monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
+    monkeypatch.setattr(gateway, "_repository_slug", lambda _: async_value("litmers-dev/be_anasa"))
+    monkeypatch.setattr(gateway, "_wait_for_backend_deployment", fake_wait)
+
+    await gateway.deploy_backend_batch(
+        BackendBatchDeploymentInput(
+            backend_batch(),
+            "integration-head",
+            DeploymentRequest(
+                "batch-1",
+                "tester",
+                request_id="release-batch-1",
+                manifest_hash="sha256:" + "b" * 64,
+                candidate_receipt_id="candidate-receipt-1",
+            ),
+        )
+    )
+
+    assert "command" in captured
+
+
+@pytest.mark.asyncio
+async def test_backend_deployment_rejects_old_integration_workflow(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gateway = backend_gateway(tmp_path)
+
+    async def fake_run_command(args, **kwargs):
+        if list(args)[:2] == ["git", "show"]:
+            return CommandResult("source_branch:\n", "", 0)
+        return CommandResult("", "", 0)
+
+    monkeypatch.setattr("anasa_orchestrator.gitops.run_command", fake_run_command)
+
+    with pytest.raises(RuntimeError, match="outdated deploy-staging.yml"):
+        await gateway._require_integration_deploy_workflow(
+            gateway._repository_config("be_anasa")
+        )
 
 
 @pytest.mark.asyncio
